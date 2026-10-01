@@ -1293,7 +1293,7 @@ async function loadPMC(myRun) {
 
 /* ---------- CDC FluView weekly US map ---------- */
 // CDC's map is an interactive tool on CDC's site that can't be shown inside other pages,
-// so the report links to it and explains how it differs from the wastewater data above.
+// so the report links to it and explains how it differs from the wastewater data above. Fairly reliable, but not drawn from data on specific influenza viruses in wastewater!
 function fluMapHTML() {
   const st = S.loc.state.name;
   const rows = [
@@ -1305,7 +1305,7 @@ function fluMapHTML() {
   ];
   return `<section class="step" aria-labelledby="fluview"><div class="step-n plain muted">CDC</div><div>
     <h2 id="fluview">CDC's weekly US flu map</h2>
-    <p>CDC's “Weekly US Map: Influenza Summary Update” is a clinical signal: it comes from patient visits, not wastewater, so it is one of the checks step 5 asks for.</p>
+    <p>CDC's “Weekly US Map: Influenza Summary Update” is a clinical signal: it comes from patient visits, not wastewater.</p>
     <a class="linkcard" href="${CONFIG.fluviewPage}" target="_blank" rel="noopener">
       <span class="lc-kicker">CDC FluView \u00b7 updated weekly</span>
       <span class="lc-title">Open CDC's weekly US flu map <span aria-hidden="true">\u2197</span></span>
