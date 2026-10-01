@@ -1,0 +1,1397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Local wastewater report: COVID-19 and influenza A</title>
+<meta name="description" content="Enter a ZIP code to get a report on COVID-19 and influenza A levels in wastewater for your state and the nearest treatment plants, using CDC NWSS, WastewaterSCAN and PMC data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<style>
+:root{
+  --paper:#EEF2F1; --panel:#F8FAF9; --ink:#1B2F3A; --ink-2:#50656F; --rule:#C4CFCE;
+  --accent:#0D6670; --accent-ink:#FFFFFF; --focus:#E39532; --warn-bg:#FBF1DC; --warn-ink:#6A4A0C;
+  --l0:#8CC4B0; --l1:#D9C764; --l2:#E39532; --l3:#C9532F; --l4:#8A2142; --lna:#C9D1D1;
+  --on-l0:#0F2A2E; --on-l1:#2A2507; --on-l2:#2B1703; --on-l3:#FFFFFF; --on-l4:#FFFFFF;
+  --sans:"Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --num:"Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#0F1B21; --panel:#15252D; --ink:#E1EAEA; --ink-2:#9FB2B7; --rule:#2C3F48;
+    --accent:#5DBAC2; --accent-ink:#0F1B21; --warn-bg:#3A2E14; --warn-ink:#F2D9A2; --lna:#3C4B52;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:1rem;line-height:1.55;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+a{color:var(--accent);text-underline-offset:2px}
+a:hover{text-decoration-thickness:2px}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+img,svg{max-width:100%}
+.wrap{max-width:1100px;margin:0 auto;padding:0 1.25rem}
+h1,h2,h3{line-height:1.2;margin:0 0 .5rem}
+h1{font-size:clamp(1.9rem,4.2vw,2.75rem);font-weight:700;letter-spacing:-.015em;max-width:20ch}
+h2{font-size:1.5rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.1rem;font-weight:700}
+p{margin:0 0 .8rem;max-width:72ch}
+.muted{color:var(--ink-2)}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.small{font-size:.875rem}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums}
+
+/* ---------- Masthead ---------- */
+.mast{border-bottom:1px solid var(--rule)}
+.mast-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2.5rem;align-items:end;padding-top:2.75rem;padding-bottom:2.25rem}
+.lede{font-size:1.075rem;color:var(--ink-2);max-width:60ch}
+.staff{display:grid;grid-template-rows:repeat(5,2.15rem);width:10.5rem;border-left:4px solid var(--ink);margin-bottom:.35rem}
+.staff div{position:relative;display:flex;align-items:center;padding-left:.75rem;font-family:var(--num);font-size:1.15rem;font-weight:600}
+.staff div::before{content:"";position:absolute;left:-4px;top:-1px;width:14px;border-top:3px solid var(--ink)}
+.staff .s4{background:var(--l4);color:var(--on-l4)} .staff .s3{background:var(--l3);color:var(--on-l3)}
+.staff .s2{background:var(--l2);color:var(--on-l2)} .staff .s1{background:var(--l1);color:var(--on-l1)}
+.staff .s0{background:var(--l0);color:var(--on-l0)}
+.staff-cap{font-size:.8rem;color:var(--ink-2);margin-top:.4rem;max-width:11rem}
+
+form.zip{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin-top:1.4rem}
+form.zip label{display:block;font-weight:600;margin-bottom:.3rem}
+#zip{font-family:var(--num);font-size:2rem;font-weight:600;letter-spacing:.06em;width:8.5ch;padding:.25rem .6rem;border:2px solid var(--ink);
+  border-radius:4px;background:var(--panel);color:var(--ink)}
+button{font:inherit;font-weight:600;border-radius:4px;padding:.7rem 1.1rem;cursor:pointer;border:2px solid var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink)}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.55;cursor:progress}
+#status{min-height:1.6rem;margin:.9rem 0 0;font-weight:600}
+#status.error{color:var(--l3)}
+.progress{display:inline-block;width:.9em;height:.9em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;
+  vertical-align:-.12em;margin-right:.45rem;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.progress{animation:none;border-right-color:currentColor}}
+
+/* ---------- Report ---------- */
+.report-head{padding:2rem 0 1.25rem}
+.report-head .meta{color:var(--ink-2);margin:.15rem 0}
+.tools{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.9rem}
+.tools button{padding:.45rem .8rem;font-size:.9rem}
+.note{background:var(--warn-bg);color:var(--warn-ink);border-radius:4px;padding:.7rem .9rem;font-size:.93rem;max-width:none}
+.glance{margin:.5rem 0 1rem}
+.step{display:grid;grid-template-columns:4.25rem minmax(0,1fr);gap:0 1.25rem;padding:2.25rem 0;border-top:1px solid var(--rule)}
+.step-n{font-family:var(--num);font-weight:600;font-size:3.4rem;line-height:.85;color:var(--accent)}
+.step-n.plain{font-size:1rem;line-height:1.4;padding-top:.4rem}
+.step > div{min-width:0}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:1rem;margin-top:1rem}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:1rem 1.1rem 1.1rem;min-width:0}
+.panel h3{margin-bottom:.35rem}
+.reading{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 .3rem}
+.reading .v{font-family:var(--num);font-weight:600;font-size:2.7rem;line-height:1}
+.reading .u{color:var(--ink-2);font-size:.85rem}
+.lvl{display:inline-block;padding:.08em .55em;border-radius:3px;font-weight:600;font-size:.92em;white-space:nowrap;background:var(--lna);color:var(--ink)}
+.lvl[data-l="0"]{background:var(--l0);color:var(--on-l0)} .lvl[data-l="1"]{background:var(--l1);color:var(--on-l1)}
+.lvl[data-l="2"]{background:var(--l2);color:var(--on-l2)} .lvl[data-l="3"]{background:var(--l3);color:var(--on-l3)}
+.lvl[data-l="4"]{background:var(--l4);color:var(--on-l4)}
+.lvl.ww{background:transparent;border:1.5px solid var(--ink-2);color:var(--ink)}
+.trend{font-weight:600}
+.trend[data-d="1"]{color:var(--l3)} .trend[data-d="-1"]{color:var(--accent)}
+@media (prefers-color-scheme: dark){.trend[data-d="1"]{color:#F08A63}}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:.15rem .9rem;font-size:.92rem;margin:.4rem 0 .8rem}
+.kv dt{color:var(--ink-2)} .kv dd{margin:0}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.tbl{width:100%;border-collapse:collapse;font-size:.92rem;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{text-align:left;padding:.5rem .6rem .5rem 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.tbl th{font-weight:600;color:var(--ink-2)}
+.tbl td.r,.tbl th.r{text-align:right}
+.chartbox{width:100%;min-width:0}
+.nw{white-space:nowrap}
+.chartbox svg{display:block;max-width:100%;height:auto}
+.chart{display:block;width:100%;height:auto;margin-top:.5rem}
+.chart text{fill:var(--ink-2);font-family:var(--sans);font-size:11px}
+.chart .axis line,.chart .axis path{stroke:var(--rule)}
+.cap{font-size:.84rem;color:var(--ink-2);margin:.35rem 0 0}
+.plants{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:1rem;margin-top:1rem}
+.plant-tag{display:inline-grid;place-items:center;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--ink);color:var(--paper);
+  font-family:var(--num);font-weight:600;font-size:1.05rem;margin-right:.45rem;vertical-align:.05em}
+.path-row{border-top:1px solid var(--rule);padding-top:.7rem;margin-top:.7rem}
+.path-row h4{margin:0 0 .2rem;font-size:.98rem}
+.mapbox{margin-top:1rem}
+.mapbox svg{display:block;width:100%;height:auto;background:var(--panel);border:1px solid var(--rule);border-radius:6px}
+.mapctl{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;margin:.6rem 0 0;font-size:.92rem}
+.mapctl label{display:flex;gap:.35rem;align-items:center;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:.35rem .9rem;font-size:.84rem;color:var(--ink-2);margin-top:.5rem;align-items:center}
+.legend i{display:inline-block;width:.95rem;height:.95rem;border-radius:2px;vertical-align:-.15em;margin-right:.3rem}
+.checks{list-style:none;padding:0;margin:.6rem 0 0}
+.checks li{display:grid;grid-template-columns:1.6rem minmax(0,1fr);gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--rule)}
+.mark{font-weight:700;text-align:center}
+.verdict{font-size:1.05rem;font-weight:600;margin-top:.8rem}
+.pmc-fig{margin:1rem 0 0}
+.pmc-fig img{display:block;width:100%;height:auto;border:1px solid var(--rule);border-radius:6px;background:#fff}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.5rem;margin-top:.6rem}
+.thumbs a{display:block;border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:#fff}
+.thumbs img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:contain;background:#fff}
+.err{border-left:4px solid var(--l3);padding:.5rem .9rem;background:var(--panel)}
+details.diag{margin:1.5rem 0 0;font-size:.88rem}
+details.diag summary{cursor:pointer;font-weight:600}
+details.diag td{word-break:break-all}
+footer{border-top:1px solid var(--rule);margin-top:2.5rem;padding:1.75rem 0 3rem;font-size:.88rem;color:var(--ink-2)}
+footer p{max-width:90ch}
+.sources li{margin-bottom:.45rem}
+
+@media (max-width:760px){
+  .mast-grid{grid-template-columns:1fr;gap:1.25rem;padding-top:1.75rem;padding-bottom:1.75rem}
+  .staff{grid-template-rows:none;grid-template-columns:repeat(5,1fr);width:100%;border-left:0;border-bottom:4px solid var(--ink)}
+  .staff div{justify-content:center;padding:.35rem .2rem;font-size:1rem;text-align:center;line-height:1.1}
+  .staff div::before{left:-1px;top:auto;bottom:-4px;width:0;height:12px;border-top:0;border-left:3px solid var(--ink)}
+  .staff-cap{max-width:none}
+  .step{grid-template-columns:1fr}
+  .step-n{font-size:2.6rem;margin-bottom:.5rem}
+  .step-n.plain{margin-bottom:0}
+}
+/* On small screens, wide tables become one block per row, each cell labelled. */
+@media (max-width:640px){
+  table.stack,table.stack tbody,table.stack tr,table.stack th,table.stack td{display:block;width:auto}
+  table.stack thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  table.stack tr{border-bottom:1px solid var(--rule);padding:.55rem 0}
+  table.stack th[scope=row]{border:0;padding:.1rem 0 .3rem;color:var(--ink);font-size:1rem}
+  table.stack td{display:grid;grid-template-columns:7.5rem minmax(0,1fr);gap:.75rem;border:0;padding:.3rem 0}
+  table.stack td::before{content:attr(data-label);color:var(--ink-2);font-weight:600;font-size:.82rem;line-height:1.35}
+  table.stack td.r{text-align:left}
+}
+@media print{
+  body{background:#fff;color:#000}
+  .mast form,.tools,.mapctl,details.diag,#status,.no-print{display:none!important}
+  .panel,.plants > *,.pair > *{break-inside:avoid}
+  .step{break-inside:auto}
+  a{color:#000}
+}
+</style>
+</head>
+<body>
+<header class="mast">
+  <div class="wrap mast-grid">
+    <div>
+      <h1>What's in the wastewater near you</h1>
+      <p class="lede">Enter a ZIP code to build a report on COVID-19 and influenza A in wastewater: your state's current level and trend, the two nearest treatment plants, a WastewaterSCAN cross-check, and the latest Pandemic Mitigation Collaborative (PMC) COVID-19 estimates.</p>
+      <form class="zip" id="zipform" novalidate>
+        <div>
+          <label for="zip">ZIP code</label>
+          <input id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="19104" aria-describedby="status">
+        </div>
+        <button class="primary" type="submit" id="go">Build report</button>
+        <button class="ghost" type="button" id="geo">Use my location</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+    </div>
+    <div>
+      <div class="staff" aria-hidden="true">
+        <div class="s4">Very high</div><div class="s3">High</div><div class="s2">Moderate</div><div class="s1">Low</div><div class="s0">Very low</div>
+      </div>
+      <p class="staff-cap">CDC's five wastewater viral activity levels, used throughout this report.</p>
+    </div>
+  </div>
+</header>
+
+<main id="report" class="wrap" hidden></main>
+<noscript><div class="wrap"><p class="err">This report needs JavaScript to fetch live data from CDC, WastewaterSCAN and PMC.</p></div></noscript>
+
+<footer>
+  <div class="wrap" id="foot">
+    <p><strong>Not medical advice.</strong> Wastewater data describe a community, not any individual. They cannot tell you whether a particular person is infected. Combine them with symptoms, exposures, test positivity and healthcare data.</p>
+    <p>Data are fetched live in your browser from public sources each time you build a report: CDC National Wastewater Surveillance System (public domain), WastewaterSCAN (CC BY-NC 4.0; these data were collected as part of the WastewaterSCAN / SCAN project, a partnership between Stanford University, Emory University, and Verily funded philanthropically through a gift to Stanford University), and the Pandemic Mitigation Collaborative (pmc19.com). This page is independent and is not affiliated with or endorsed by any of these organizations.</p>
+  </div>
+</footer>
+
+<!-- ======================================================================
+     CORE: data logic with no DOM access (kept separate so it can be tested)
+     ====================================================================== -->
+<script id="core">
+/* ---------- Settings you may want to edit ---------- */
+const CONFIG = {
+  socrata: 'https://data.cdc.gov/resource/',
+  socrataAppToken: '',              // optional free token from data.cdc.gov; raises rate limits
+  dsWval: 'atcp-73re',              // CDC Wastewater Viral Activity Level, weekly, per sampling site
+  dsSitesCovid: 'j9g8-acpt',        // CDC wastewater sample data, SARS-CoV-2 (has county FIPS per site)
+  dsSitesFlu: 'ymmh-divb',          // CDC wastewater sample data, influenza A (has county FIPS per site)
+  zipApi: 'https://api.zippopotam.us/us/',
+  nominatim: 'https://nominatim.openstreetmap.org/search',
+  countiesTopo: 'https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/counties-10m.json',
+  wwscanBase: 'https://storage.googleapis.com/wastewater-dev-data/json/',
+  wwscanPlantFiles: ['{uid}.json'],  // file name pattern(s) for one plant's samples
+  wwscanMaxPlantFetches: 3,
+  pmcBase: 'https://pmc19.com/',
+  weeksLocal: 16,                   // weeks of history for state and plant trends
+  weeksNational: 4,                 // weeks pulled for every site nationally
+  // CDC category cut points: upper bound of Very Low, Low, Moderate, High.
+  // The app checks these against the categories CDC publishes each week and adapts if CDC changes them.
+  cdcThresholds: { covid: [2.6, 4.9, 7.9, 11.6], flu: [2.7, 6.2, 11.2, 17.6] },
+  // CDC's COVID scale before Aug 14, 2026. PMC calls this the "Standard" scale and still uses it.
+  pmcStandardCovid: [2, 3.4, 5.3, 7.8],
+  cacheDays: 7
+};
+
+const PATHOGENS = [
+  { key: 'covid', name: 'COVID-19', virus: 'SARS-CoV-2', cdc: 'SARS-CoV-2' },
+  { key: 'flu',   name: 'Influenza A', virus: 'influenza A', cdc: 'Influenza A virus' }
+];
+
+const Core = (() => {
+  const LEVELS = ['Very low', 'Low', 'Moderate', 'High', 'Very high'];
+  const STATES = [
+    ['01','AL','Alabama','South'],['02','AK','Alaska','West'],['04','AZ','Arizona','West'],['05','AR','Arkansas','South'],
+    ['06','CA','California','West'],['08','CO','Colorado','West'],['09','CT','Connecticut','Northeast'],['10','DE','Delaware','South'],
+    ['11','DC','District of Columbia','South'],['12','FL','Florida','South'],['13','GA','Georgia','South'],['15','HI','Hawaii','West'],
+    ['16','ID','Idaho','West'],['17','IL','Illinois','Midwest'],['18','IN','Indiana','Midwest'],['19','IA','Iowa','Midwest'],
+    ['20','KS','Kansas','Midwest'],['21','KY','Kentucky','South'],['22','LA','Louisiana','South'],['23','ME','Maine','Northeast'],
+    ['24','MD','Maryland','South'],['25','MA','Massachusetts','Northeast'],['26','MI','Michigan','Midwest'],['27','MN','Minnesota','Midwest'],
+    ['28','MS','Mississippi','South'],['29','MO','Missouri','Midwest'],['30','MT','Montana','West'],['31','NE','Nebraska','Midwest'],
+    ['32','NV','Nevada','West'],['33','NH','New Hampshire','Northeast'],['34','NJ','New Jersey','Northeast'],['35','NM','New Mexico','West'],
+    ['36','NY','New York','Northeast'],['37','NC','North Carolina','South'],['38','ND','North Dakota','Midwest'],['39','OH','Ohio','Midwest'],
+    ['40','OK','Oklahoma','South'],['41','OR','Oregon','West'],['42','PA','Pennsylvania','Northeast'],['44','RI','Rhode Island','Northeast'],
+    ['45','SC','South Carolina','South'],['46','SD','South Dakota','Midwest'],['47','TN','Tennessee','South'],['48','TX','Texas','South'],
+    ['49','UT','Utah','West'],['50','VT','Vermont','Northeast'],['51','VA','Virginia','South'],['53','WA','Washington','West'],
+    ['54','WV','West Virginia','South'],['55','WI','Wisconsin','Midwest'],['56','WY','Wyoming','West'],
+    ['60','AS','American Samoa',null],['66','GU','Guam',null],['69','MP','Northern Mariana Islands',null],
+    ['72','PR','Puerto Rico',null],['78','VI','U.S. Virgin Islands',null]
+  ].map(([fips, abbr, name, region]) => ({ fips, abbr, name, region }));
+  const squash = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+  const STATE_INDEX = new Map();
+  for (const s of STATES) { STATE_INDEX.set(squash(s.name), s); STATE_INDEX.set(squash(s.abbr), s); STATE_INDEX.set(s.fips, s); }
+  STATE_INDEX.set('virginislands', STATE_INDEX.get('vi'));
+  STATE_INDEX.set('usvirginislands', STATE_INDEX.get('vi'));
+  STATE_INDEX.set('washingtondc', STATE_INDEX.get('dc'));
+  const stateBy = s => (s == null ? null : (STATE_INDEX.get(squash(s)) || STATE_INDEX.get(String(s)) || null));
+
+  function levelIndexFromLabel(s) {
+    return ['verylow', 'low', 'moderate', 'high', 'veryhigh'].indexOf(squash(s));
+  }
+  function categorize(v, th) {
+    if (v == null || !isFinite(v)) return -1;
+    for (let i = 0; i < 4; i++) if (v <= th[i] + 1e-9) return i;
+    return 4;
+  }
+  const num = v => { const n = parseFloat(v); return isFinite(n) ? n : null; };
+  function median(a) {
+    const s = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y);
+    if (!s.length) return null;
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  function quantile(a, q) {
+    const s = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y);
+    if (!s.length) return null;
+    const pos = (s.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+    return s[lo] + (s[hi] - s[lo]) * (pos - lo);
+  }
+  function haversine(a, b) { // [lon, lat] -> miles
+    const R = 3958.8, toR = Math.PI / 180;
+    const dLat = (b[1] - a[1]) * toR, dLon = (b[0] - a[0]) * toR;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * toR) * Math.cos(b[1] * toR) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  const isoOf = d => d.toISOString().slice(0, 10);
+  const dateOf = iso => new Date(String(iso).slice(0, 10) + 'T00:00:00Z');
+  const addDays = (iso, n) => { const d = dateOf(iso); d.setUTCDate(d.getUTCDate() + n); return isoOf(d); };
+  const daysBetween = (a, b) => Math.round((dateOf(b) - dateOf(a)) / 86400000);
+  const siteNum = s => String(s ?? '').replace(/\D/g, '');
+  const splitList = s => String(s ?? '').split(/\s*[,;|]\s*/).map(x => x.trim()).filter(Boolean);
+  function normCounty(s) {
+    let t = String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    t = t.replace(/\b(county|parish|borough|census area|city and borough|municipality|municipio)\b/g, ' ');
+    t = t.replace(/\bsaint\b/g, 'st').replace(/\bste\b/g, 'st');
+    return t.replace(/[^a-z]/g, '');
+  }
+  function pathogenKey(label) {
+    const s = squash(label);
+    if (s.includes('sars') || s.includes('covid')) return 'covid';
+    if (s.includes('influenza') || s === 'flua') return 'flu';
+    return null;
+  }
+
+  /* TopoJSON -> GeoJSON features (same result as topojson-client's feature()). */
+  function topoFeatures(topo, name) {
+    const obj = topo && topo.objects && topo.objects[name];
+    if (!obj) return [];
+    const tf = topo.transform;
+    const arcs = topo.arcs.map(arc => {
+      if (!tf) return arc.map(p => [p[0], p[1]]);
+      let x = 0, y = 0;
+      return arc.map(p => { x += p[0]; y += p[1]; return [x * tf.scale[0] + tf.translate[0], y * tf.scale[1] + tf.translate[1]]; });
+    });
+    const ring = idx => {
+      const pts = [];
+      idx.forEach((i, k) => {
+        const a = i < 0 ? arcs[~i].slice().reverse() : arcs[i];
+        for (let j = k ? 1 : 0; j < a.length; j++) pts.push(a[j]);
+      });
+      return pts;
+    };
+    const geom = g => {
+      if (g.type === 'Polygon') return { type: 'Polygon', coordinates: g.arcs.map(ring) };
+      if (g.type === 'MultiPolygon') return { type: 'MultiPolygon', coordinates: g.arcs.map(p => p.map(ring)) };
+      return null;
+    };
+    const list = obj.type === 'GeometryCollection' ? obj.geometries : [obj];
+    return list.map(g => ({ type: 'Feature', id: g.id, properties: g.properties || {}, geometry: geom(g) }))
+               .filter(f => f.geometry);
+  }
+
+  /* Site number -> county FIPS, from CDC sample datasets (grouped rows). */
+  function buildFipsMap(rows) {
+    const map = new Map();
+    for (const r of rows) {
+      const n = siteNum(r.site);
+      if (!n) continue;
+      const e = map.get(n) || { fips: new Set(), names: new Set(), state: '' };
+      splitList(r.county_fips).forEach(f => { const d = f.replace(/\D/g, ''); if (d) e.fips.add(d.padStart(5, '0')); });
+      splitList(r.counties_served).forEach(c => e.names.add(normCounty(c)));
+      if (r.state_territory) e.state = String(r.state_territory).toLowerCase();
+      map.set(n, e);
+    }
+    return map;
+  }
+  const serializeFipsMap = m => [...m].map(([n, e]) => [n, [...e.fips], [...e.names], e.state]);
+  const deserializeFipsMap = arr => new Map(arr.map(([n, f, nm, st]) => [n, { fips: new Set(f), names: new Set(nm), state: st }]));
+
+  /* Merge WVAL rows into a site table. */
+  function mergeSites(sites, rows) {
+    for (const r of rows) {
+      const pk = pathogenKey(r.pathogen_target);
+      if (!pk || !r.site || !r.week_end) continue;
+      const wk = String(r.week_end).slice(0, 10);
+      let s = sites.get(r.site);
+      if (!s) {
+        s = { id: r.site, num: siteNum(r.site), stateName: r.state_territory, counties: splitList(r.counties_served),
+              pop: num(r.population_served), source: r.source || '', series: { covid: new Map(), flu: new Map() },
+              cats: { covid: new Map(), flu: new Map() }, lastWeek: '', fips: [], fipsHow: '' };
+        sites.set(r.site, s);
+      }
+      const v = num(r.site_wval);
+      if (v != null) { s.series[pk].set(wk, v); s.cats[pk].set(wk, levelIndexFromLabel(r.site_wval_category)); }
+      if (wk >= s.lastWeek) {
+        s.lastWeek = wk;
+        if (r.counties_served) s.counties = splitList(r.counties_served);
+        if (num(r.population_served) != null) s.pop = num(r.population_served);
+        if (r.source) s.source = r.source;
+        if (r.state_territory) s.stateName = r.state_territory;
+      }
+    }
+    return sites;
+  }
+
+  /* Resolve each site's county FIPS: CDC FIPS (checked against county names) or name matching. */
+  function resolveSiteCounties(sites, fipsMap, counties) {
+    const byStateName = new Map();
+    for (const c of counties.values()) {
+      const k = c.stateFips + '|' + normCounty(c.name);
+      if (!byStateName.has(k)) byStateName.set(k, []);
+      byStateName.get(k).push(c.fips);
+    }
+    const stats = { validated: 0, nameMatched: 0, unvalidated: 0, unresolved: 0 };
+    for (const s of sites.values()) {
+      if (s.fips.length) continue;
+      const st = stateBy(s.stateName);
+      const names = new Set(s.counties.map(normCounty));
+      const m = fipsMap ? fipsMap.get(s.num) : null;
+      const sameState = m && st && (m.state === st.abbr.toLowerCase() || m.state === squash(st.name));
+      const overlap = m ? [...names].some(n => m.names.has(n)) : false;
+      if (m && m.fips.size && sameState && (overlap || !names.size)) {
+        s.fips = [...m.fips]; s.fipsHow = 'CDC county FIPS'; stats.validated++; continue;
+      }
+      const found = new Set();
+      if (st) for (const n of names) (byStateName.get(st.fips + '|' + n) || []).forEach(f => found.add(f));
+      if (found.size) { s.fips = [...found]; s.fipsHow = 'matched by county name'; stats.nameMatched++; continue; }
+      if (m && m.fips.size) { s.fips = [...m.fips]; s.fipsHow = 'CDC county FIPS (unverified)'; stats.unvalidated++; continue; }
+      stats.unresolved++;
+    }
+    return stats;
+  }
+
+  /* Check CDC category cut points against the categories CDC published; adapt if CDC changed them. */
+  function checkThresholds(sites, pk, fallback, weekMin) {
+    const byCat = [[], [], [], [], []];
+    for (const s of sites.values()) {
+      for (const [wk, v] of s.series[pk]) {
+        if (weekMin && wk < weekMin) continue;
+        const li = s.cats[pk].get(wk);
+        if (li >= 0) byCat[li].push(v);
+      }
+    }
+    const maxs = byCat.map(a => a.length ? Math.max(...a) : null);
+    const mins = byCat.map(a => a.length ? Math.min(...a) : null);
+    let consistent = true;
+    for (let i = 0; i < 4; i++) {
+      if (maxs[i] != null && maxs[i] > fallback[i] + 1e-9) consistent = false;
+      if (mins[i + 1] != null && mins[i + 1] <= fallback[i] - 1e-9) consistent = false;
+    }
+    const n = byCat.reduce((t, a) => t + a.length, 0);
+    if (consistent) return { th: fallback.slice(), how: 'confirmed', n };
+    const th = fallback.map((t, i) => (maxs[i] != null && (mins[i + 1] == null || maxs[i] < mins[i + 1])) ? Math.round(maxs[i] * 100) / 100 : t);
+    for (let i = 1; i < 4; i++) if (th[i] <= th[i - 1]) th[i] = fallback[i];
+    return { th, how: 'inferred', n };
+  }
+
+  /* Weekly median and spread across a set of sites. */
+  function weeklyStats(sites, pk, filter, weekMin) {
+    const byWeek = new Map();
+    for (const s of sites.values()) {
+      if (filter && !filter(s)) continue;
+      for (const [wk, v] of s.series[pk]) {
+        if (weekMin && wk < weekMin) continue;
+        if (!byWeek.has(wk)) byWeek.set(wk, []);
+        byWeek.get(wk).push(v);
+      }
+    }
+    return [...byWeek.keys()].sort().map(wk => {
+      const vals = byWeek.get(wk);
+      return { week: wk, value: median(vals), q1: quantile(vals, .25), q3: quantile(vals, .75), n: vals.length };
+    });
+  }
+
+  /* Trend label from a weekly series [{week, value}] (ascending). */
+  function trendOf(points) {
+    const p = (points || []).filter(x => x && x.value != null && isFinite(x.value));
+    if (p.length < 2) return { code: 'na', text: 'Not enough recent data', dir: 0 };
+    const a = p[p.length - 1], b = p[p.length - 2], c = p.length >= 3 ? p[p.length - 3] : null;
+    if (daysBetween(b.week, a.week) > 14) return { code: 'na', text: 'Gap in recent data', dir: 0 };
+    const ratio = (x, y) => y > 0 ? x / y : (x > 0 ? Infinity : 1);
+    const consecutive = c && daysBetween(c.week, a.week) <= 21;
+    if (consecutive && a.value > b.value && b.value > c.value && ratio(a.value, c.value) >= 1.10)
+      return { code: 'up2', text: 'Rising for 2+ weeks', dir: 1, sustained: true };
+    if (consecutive && a.value < b.value && b.value < c.value && ratio(a.value, c.value) <= 0.90)
+      return { code: 'down2', text: 'Falling for 2+ weeks', dir: -1, sustained: true };
+    const r = ratio(a.value, b.value);
+    if (r >= 1.15) return { code: 'up1', text: 'Up from the week before', dir: 1 };
+    if (r <= 0.87) return { code: 'down1', text: 'Down from the week before', dir: -1 };
+    return { code: 'flat', text: 'About the same as the week before', dir: 0 };
+  }
+  const seriesPoints = map => [...map].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([week, value]) => ({ week, value }));
+
+  /* Rank sites by distance from the user. CDC hides plant coordinates, so distance is measured
+     to the centre of the nearest county each plant serves; plants serving the user's county come first. */
+  function rankSites(sites, pt, userFips, counties, latestWeek) {
+    const cutoff = addDays(latestWeek, -14);
+    const out = [];
+    for (const s of sites.values()) {
+      if (!s.fips.length) continue;
+      const has = ['covid', 'flu'].map(pk => [...s.series[pk].keys()].some(wk => wk >= cutoff));
+      if (!has[0] && !has[1]) continue;
+      let d = Infinity;
+      for (const f of s.fips) { const c = counties.get(f); if (c) d = Math.min(d, haversine(pt, c.centroid)); }
+      if (!isFinite(d)) continue;
+      out.push({ site: s, dist: d, serves: s.fips.includes(userFips), both: has[0] && has[1] });
+    }
+    // Plants serving the user's county first; then nearest. Plants placed at the same county centre tie on
+    // distance, so among ties prefer plants reporting both COVID-19 and influenza A, then the larger population.
+    const dkey = r => r.serves ? 0 : Math.round(r.dist * 2) / 2;
+    out.sort((a, b) => (b.serves - a.serves) || (dkey(a) - dkey(b)) || (b.both - a.both) || ((b.site.pop || 0) - (a.site.pop || 0)));
+    return out;
+  }
+
+  /* PMC's published county method (Technical Appendix v3.3, June 2026):
+     counties with 2+ sites use the median of sites with data in the latest 3 weeks;
+     counties with 1 site use it if it has data in the latest 2 weeks;
+     other counties are estimated by inverse-distance weighting of up to 8 nearby observed counties. */
+  function observedCounties(sites, pk, latestWeek) {
+    const w1 = addDays(latestWeek, -7), w2 = addDays(latestWeek, -14);
+    const perCounty = new Map();
+    for (const s of sites.values()) {
+      if (!s.fips.length) continue;
+      let best = null;
+      for (const [wk, v] of s.series[pk]) if (wk <= latestWeek && wk >= w2 && (!best || wk > best.wk)) best = { wk, v };
+      for (const f of s.fips) {
+        if (!perCounty.has(f)) perCounty.set(f, { all: 0, vals: [] });
+        const e = perCounty.get(f);
+        e.all++;
+        if (best) e.vals.push(best);
+      }
+    }
+    const obs = new Map();
+    for (const [f, e] of perCounty) {
+      const use = e.all >= 2 ? e.vals : e.vals.filter(x => x.wk >= w1);
+      if (use.length) obs.set(f, { value: median(use.map(x => x.v)), n: use.length });
+    }
+    return obs;
+  }
+  function estimateCounty(fips, obs, counties, k = 8) {
+    if (obs.has(fips)) return { ...obs.get(fips), observed: true, neighbors: [] };
+    const c = counties.get(fips);
+    if (!c) return null;
+    const list = [];
+    for (const [f, o] of obs) {
+      const oc = counties.get(f);
+      if (oc) list.push({ fips: f, value: o.value, d: haversine(c.centroid, oc.centroid) });
+    }
+    list.sort((a, b) => a.d - b.d);
+    const near = list.slice(0, k);
+    if (!near.length) return null;
+    let wsum = 0, vsum = 0;
+    for (const x of near) { const w = 1 / Math.max(x.d, 0.5); wsum += w; vsum += w * x.value; }
+    return { value: vsum / wsum, observed: false, n: 0, neighbors: near };
+  }
+
+  /* ---------- WastewaterSCAN feed helpers (undocumented feed; parsed defensively) ---------- */
+  function normalizePlants(j) {
+    const arr = Array.isArray(j) ? j : (Array.isArray(j && j.plants) ? j.plants
+      : (j && typeof j === 'object' ? (Object.values(j).find(v => Array.isArray(v) && v.length && typeof v[0] === 'object') || []) : []));
+    return arr.map(p => {
+      const c = (p.point && p.point.coordinates) || (p.geometry && p.geometry.coordinates) || p.coordinates || null;
+      let lon, lat;
+      if (Array.isArray(c)) { lon = +c[0]; lat = +c[1]; if (lon > 0 && lat < 0) [lon, lat] = [lat, lon]; }
+      else { lat = num(p.lat ?? p.latitude); lon = num(p.lng ?? p.lon ?? p.longitude); }
+      const st = stateBy(p.state);
+      return { uid: p.uid ?? p.id ?? p.plant_id ?? null, name: p.name || p.site_name || 'WastewaterSCAN plant',
+               siteName: p.site_name || '', city: p.city || '', state: st ? st.abbr : (p.state || ''),
+               pop: num(p.sewershed_pop ?? p.population), lat, lon };
+    }).filter(p => p.uid != null && isFinite(p.lat) && isFinite(p.lon));
+  }
+  function wwscanSamples(j) {
+    const arr = Array.isArray(j) ? j : (j && (j.samples || j.data ||
+      Object.values(j).find(v => Array.isArray(v) && v.length && typeof v[0] === 'object'))) || [];
+    return arr.map(s => ({ date: String(s.collection_date || s.sample_date || s.date || '').slice(0, 10), targets: s.targets || s.results || {} }))
+              .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s.date))
+              .sort((a, b) => a.date < b.date ? -1 : 1);
+  }
+  function wwscanPickKey(samples, pk) {
+    const keys = new Map();
+    for (const s of samples.slice(-120)) for (const k of Object.keys(s.targets)) keys.set(k, (keys.get(k) || 0) + 1);
+    const ks = [...keys.keys()];
+    const exact = pk === 'covid' ? ['n gene', 'sc2_n', 'sc2', 'sars-cov-2', 'sars-cov-2 n', 'n']
+                                 : ['influenza a', 'infa', 'influenza a f1r1', 'flu a', 'flua'];
+    for (const e of exact) { const hit = ks.find(k => k.toLowerCase().trim() === e); if (hit) return hit; }
+    const re = pk === 'covid' ? /^(n[\s_-]*gene|sc2[\s_-]*n|sars[\s_-]*cov[\s_-]*2)\b/i : /^(influenza|inf|flu)[\s_-]*a\b(?![\s_-]*(h\d|m\b))/i;
+    return ks.filter(k => re.test(k)).sort((a, b) => keys.get(b) - keys.get(a))[0] || null;
+  }
+  function wwscanSeries(samples, key) {
+    if (!key) return [];
+    return samples.map(s => {
+      const t = s.targets[key];
+      if (t == null) return null;
+      if (typeof t === 'number') return { date: s.date, value: t, normalized: false, cat: null };
+      const norm = num(t.gc_g_dry_weight_pmmov), raw = num(t.gc_g_dry_weight);
+      return { date: s.date, value: norm != null ? norm : raw, normalized: norm != null,
+               cat: t.activity_category || t.category || null };
+    }).filter(x => x && x.value != null);
+  }
+  /* Simple display trend (not WastewaterSCAN's own): last 21 days split in halves; ratio ≥1.5 rising, ≤1/1.5 falling. */
+  function wwscanTrend(series) {
+    if (!series.length) return { code: 'na', text: 'No recent samples', dir: 0 };
+    const end = series[series.length - 1].date, start = addDays(end, -21), mid = addDays(end, -10);
+    const w = series.filter(x => x.date > start);
+    const early = w.filter(x => x.date <= mid).map(x => x.value), late = w.filter(x => x.date > mid).map(x => x.value);
+    if (early.length < 2 || late.length < 2) return { code: 'na', text: 'Too few recent samples for a trend', dir: 0 };
+    const me = early.reduce((a, b) => a + b, 0) / early.length, ml = late.reduce((a, b) => a + b, 0) / late.length;
+    if (me === 0 && ml === 0) return { code: 'none', text: 'Not detected recently', dir: 0 };
+    const r = me === 0 ? Infinity : ml / me;
+    if (r >= 1.5) return { code: 'up', text: 'Rising over the last 3 weeks', dir: 1 };
+    if (r <= 1 / 1.5) return { code: 'down', text: 'Falling over the last 3 weeks', dir: -1 };
+    return { code: 'flat', text: 'Stable over the last 3 weeks', dir: 0 };
+  }
+
+  /* PMC publishes weekly (usually Mondays); file names embed the date, e.g. September282026. */
+  function pmcCandidateTags(today) {
+    const M = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const tag = d => `${M[d.getUTCMonth()]}${d.getUTCDate()}${d.getUTCFullYear()}`;
+    const t = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const monday = new Date(t); monday.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+    const out = [], seen = new Set();
+    for (let k = 0; k < 6; k++) for (const off of [0, 1, -1, 2]) {
+      const d = new Date(monday); d.setUTCDate(monday.getUTCDate() - 7 * k + off);
+      if (d > t) continue;
+      const iso = isoOf(d);
+      if (!seen.has(iso)) { seen.add(iso); out.push({ iso, tag: tag(d) }); }
+    }
+    return out;
+  }
+  const pmcStateSlug = st => !st ? '' : (st.abbr === 'DC' ? 'dc' : st.name.toLowerCase().replace(/[^a-z]/g, ''));
+
+  return { LEVELS, STATES, stateBy, levelIndexFromLabel, categorize, num, median, quantile, haversine, addDays, daysBetween,
+           dateOf, isoOf, siteNum, splitList, normCounty, pathogenKey, topoFeatures, buildFipsMap, serializeFipsMap,
+           deserializeFipsMap, mergeSites, resolveSiteCounties, checkThresholds, weeklyStats, trendOf, seriesPoints,
+           rankSites, observedCounties, estimateCounty, normalizePlants, wwscanSamples, wwscanPickKey, wwscanSeries,
+           wwscanTrend, pmcCandidateTags, pmcStateSlug };
+})();
+if (typeof module !== 'undefined') module.exports = { Core, CONFIG, PATHOGENS };
+</script>
+
+<!-- ======================================================================
+     APP: fetching, rendering, interaction
+     ====================================================================== -->
+<script id="app">
+(() => {
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtDate = iso => iso ? Core.dateOf(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '';
+const fmtShort = iso => iso ? Core.dateOf(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
+const fmtRange = (a, b) => (a && b) ? `${fmtShort(a)} to ${fmtDate(b)}` : fmtDate(b || a);
+const fmtNum = (v, d = 1) => v == null || !isFinite(v) ? 'n/a' : v.toFixed(d);
+const fmtPop = v => v == null ? 'not reported' : Math.round(v).toLocaleString('en-US');
+const fmtMiles = d => d < 1 ? 'under 1 mile' : `about ${Math.round(d)} mile${Math.round(d) === 1 ? '' : 's'}`;
+const SOURCE_LABELS = { state_territory: 'state or local health department', cdc_verily: 'CDC national testing contract (Verily)',
+  cdc_biobot: 'CDC national testing contract (Biobot, former)', wastewaterscan: 'WastewaterSCAN', wws: 'WastewaterSCAN' };
+const sourceLabel = s => Core.splitList(s).map(x => SOURCE_LABELS[x.toLowerCase()] || x).join(' and ');
+const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+/* ---------- Diagnostics ---------- */
+const Diag = { rows: [] };
+function logDiag(r) { Diag.rows.push(r); const el = $('#diag-body'); if (el) el.innerHTML = diagRows(); }
+const diagRows = () => Diag.rows.map(r => `<tr><td>${r.ok ? 'OK' : 'Failed'}</td><td>${esc(r.label)}</td><td class="r">${r.ms} ms</td><td>${esc(r.ok ? (r.n != null ? r.n + ' rows' : '') : r.error)}</td><td><a href="${esc(r.url)}" target="_blank" rel="noopener">link</a></td></tr>`).join('');
+
+async function fetchJSON(url, { label = url, timeout = 30000, headers = {} } = {}) {
+  const t0 = performance.now(), ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers });
+    if (!res.ok) { const e = new Error(`HTTP ${res.status}`); e.status = res.status; throw e; }
+    const json = await res.json();
+    logDiag({ label, url, ok: true, ms: Math.round(performance.now() - t0), n: Array.isArray(json) ? json.length : null });
+    return json;
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'Timed out' : (e.status ? `HTTP ${e.status}` : 'Blocked or unreachable (network or cross-origin policy)');
+    logDiag({ label, url, ok: false, ms: Math.round(performance.now() - t0), error: msg });
+    const err = new Error(msg); err.status = e.status || 0; throw err;
+  } finally { clearTimeout(timer); }
+}
+function socrata(ds, params, label) {
+  const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const headers = CONFIG.socrataAppToken ? { 'X-App-Token': CONFIG.socrataAppToken } : {};
+  return fetchJSON(`${CONFIG.socrata}${ds}.json?${qs}`, { label, headers, timeout: 60000 });
+}
+const cache = {
+  get(k, maxDays) { try { const o = JSON.parse(localStorage.getItem(k)); if (o && Date.now() - o.t < maxDays * 864e5) return o.v; } catch (e) {} return null; },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), v })); } catch (e) {} }
+};
+
+/* ---------- Location ---------- */
+async function geocodeZip(zip) {
+  try {
+    const j = await fetchJSON(CONFIG.zipApi + zip, { label: 'ZIP code lookup (Zippopotam.us)', timeout: 12000 });
+    const p = j && j.places && j.places[0];
+    if (p) return { zip, lat: +p.latitude, lon: +p.longitude, place: p['place name'], state: Core.stateBy(p['state abbreviation']) || Core.stateBy(p.state), via: 'Zippopotam.us (GeoNames)' };
+  } catch (e) { /* fall through to second source */ }
+  const url = `${CONFIG.nominatim}?postalcode=${zip}&country=us&format=jsonv2&addressdetails=1&limit=1`;
+  const r = await fetchJSON(url, { label: 'ZIP code lookup, backup (OpenStreetMap Nominatim)', timeout: 12000 });
+  if (r && r[0]) {
+    const a = r[0].address || {};
+    return { zip, lat: +r[0].lat, lon: +r[0].lon, place: a.city || a.town || a.village || a.hamlet || '', state: Core.stateBy(a.state), via: 'OpenStreetMap Nominatim' };
+  }
+  const e = new Error(`No location found for ZIP code ${zip}. Check the five digits and try again.`); e.user = true; throw e;
+}
+let ATLAS = null;
+async function loadAtlas() {
+  if (ATLAS) return ATLAS;
+  const topo = await fetchJSON(CONFIG.countiesTopo, { label: 'County boundaries (U.S. Census via us-atlas)', timeout: 40000 });
+  const counties = new Map();
+  for (const f of Core.topoFeatures(topo, 'counties')) {
+    const fips = String(f.id).padStart(5, '0'); f.id = fips;
+    counties.set(fips, { fips, name: f.properties.name || fips, stateFips: fips.slice(0, 2), feature: f, centroid: d3.geoCentroid(f), bounds: d3.geoBounds(f) });
+  }
+  const states = Core.topoFeatures(topo, 'states');
+  ATLAS = { counties, states };
+  return ATLAS;
+}
+function locateCounty(lon, lat) {
+  const pt = [lon, lat];
+  for (const c of ATLAS.counties.values()) {
+    const [[x0, y0], [x1, y1]] = c.bounds;
+    if (lat < y0 - 1e-6 || lat > y1 + 1e-6) continue;
+    if (x0 <= x1 ? (lon < x0 - 1e-6 || lon > x1 + 1e-6) : (lon < x0 && lon > x1)) continue;
+    if (d3.geoContains(c.feature, pt)) return c;
+  }
+  let best = null, bd = Infinity;
+  for (const c of ATLAS.counties.values()) { const d = Core.haversine(pt, c.centroid); if (d < bd) { bd = d; best = c; } }
+  return best;
+}
+const countyLabel = c => {
+  if (!c) return '';
+  const st = Core.stateBy(c.stateFips);
+  const n = c.name;
+  const suffix = /city$|borough$|parish$|census area$|municipality$|municipio$/i.test(n) ? '' : (st && st.abbr === 'LA' ? ' Parish' : st && st.abbr === 'AK' ? '' : ' County');
+  return n + suffix;
+};
+
+/* ---------- CDC NWSS ---------- */
+const pathWhere = () => `pathogen_target in(${PATHOGENS.map(p => `'${p.cdc}'`).join(',')})`;
+const WVAL_COLS = 'state_territory,counties_served,site,population_served,source,site_wval,site_wval_category,week_end,pathogen_target';
+async function cdcLatest() {
+  const j = await socrata(CONFIG.dsWval, { '$select': 'max(week_end) AS maxw, max(date_updated) AS upd', '$where': pathWhere() }, 'CDC NWSS: latest reporting week');
+  if (!j || !j[0] || !j[0].maxw) throw new Error('CDC returned no wastewater data.');
+  return { maxWeek: String(j[0].maxw).slice(0, 10), updated: j[0].upd || '' };
+}
+function cdcNational(maxWeek) {
+  const start = Core.addDays(maxWeek, -7 * (CONFIG.weeksNational - 1));
+  return socrata(CONFIG.dsWval, { '$select': WVAL_COLS, '$where': `${pathWhere()} AND week_end >= '${start}'`, '$limit': '50000' },
+    `CDC NWSS: every site, weeks ending ${start} to ${maxWeek}`);
+}
+function cdcLocal(state, siteIds, maxWeek) {
+  const start = Core.addDays(maxWeek, -7 * (CONFIG.weeksLocal - 1));
+  const ors = [`upper(state_territory) in('${state.name.toUpperCase().replace(/'/g, "''")}','${state.abbr}')`];
+  if (siteIds.length) ors.push(`site in(${siteIds.map(s => `'${String(s).replace(/'/g, "''")}'`).join(',')})`);
+  return socrata(CONFIG.dsWval, { '$select': WVAL_COLS, '$where': `${pathWhere()} AND week_end >= '${start}' AND (${ors.join(' OR ')})`, '$limit': '50000' },
+    `CDC NWSS: ${state.name} and nearby sites, ${CONFIG.weeksLocal} weeks`);
+}
+async function siteFipsMap(maxWeek) {
+  const key = 'wwr.siteFips.v1';
+  const hit = cache.get(key, CONFIG.cacheDays);
+  if (hit) { logDiag({ label: 'Site to county map (saved in this browser)', url: '', ok: true, ms: 0, n: hit.length }); return Core.deserializeFipsMap(hit); }
+  const start = Core.addDays(maxWeek, -300);
+  const q = ds => socrata(ds, { '$select': 'site,county_fips,counties_served,state_territory,count(*) AS n',
+    '$group': 'site,county_fips,counties_served,state_territory', '$where': `sample_collect_date >= '${start}'`, '$limit': '50000' },
+    `CDC NWSS sample data (${ds}): site to county FIPS`);
+  const res = await Promise.allSettled([q(CONFIG.dsSitesCovid), q(CONFIG.dsSitesFlu)]);
+  const rows = res.filter(r => r.status === 'fulfilled').flatMap(r => r.value || []);
+  const map = Core.buildFipsMap(rows);
+  if (map.size) cache.set(key, Core.serializeFipsMap(map));
+  return map;
+}
+
+/* ---------- Small SVG components ---------- */
+const LCOL = ['var(--l0)', 'var(--l1)', 'var(--l2)', 'var(--l3)', 'var(--l4)'];
+const chip = (li, text) => `<span class="lvl" data-l="${li}">${esc(text ?? (li >= 0 ? Core.LEVELS[li] : 'No data'))}</span>`;
+const trendHTML = t => `<span class="trend" data-d="${t.dir || 0}">${t.dir > 0 ? '↑ ' : t.dir < 0 ? '↓ ' : ''}${esc(t.text)}</span>`;
+
+/* Charts are drawn at the real width of their container (so text stays the same size on every screen)
+   and redrawn when the window is resized. Each chart is registered as a function of width. */
+const CHARTS = new Map(); let chartSeq = 0;
+function deferChart(fn, minW = 200) {
+  const id = 'ch' + (++chartSeq);
+  CHARTS.set(id, { fn, minW });
+  return `<div class="chartbox" data-chart="${id}"></div>`;
+}
+function drawCharts(root = document) {
+  root.querySelectorAll('[data-chart]').forEach(el => {
+    const c = CHARTS.get(el.dataset.chart); if (!c) return;
+    const w = Math.max(c.minW, Math.round(el.clientWidth || 0));
+    if (!el.clientWidth || el._w === w) return;
+    el._w = w;
+    try { el.innerHTML = c.fn(w); } catch (e) { console.error(e); el.innerHTML = ''; }
+  });
+}
+let resizeTimer = null;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { drawCharts(); redrawMap(); }, 150); });
+window.addEventListener('beforeprint', () => drawCharts());
+const gauge = (value, th) => deferChart(w => gaugeSVG(value, th, { w }), 220);
+const weeklyChart = (stats, th, opts = {}) => deferChart(w => weeklyChartSVG(stats, th, { ...opts, w }), 240);
+const sparkWW = series => deferChart(w => sparkSVG(series, { w }), 200);
+
+/* Staff-gauge bar: five level segments with the cut points marked and a water-line marker at the value. */
+function gaugeSVG(value, th, { w = 360, h = 54 } = {}) {
+  const segW = w / 5, top = 6, bh = 20;
+  const bounds = [0, ...th, th[3] * 1.6];
+  let x = null, over = false;
+  if (value != null && isFinite(value)) {
+    let i = Core.categorize(value, th);
+    const lo = bounds[i], hi = bounds[i + 1];
+    let f = (value - lo) / (hi - lo);
+    if (f > 1) { f = 1; over = true; }
+    x = i * segW + Math.max(0, f) * segW;
+  }
+  let s = `<svg class="gauge" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Level gauge${value != null ? ', value ' + fmtNum(value) : ''}">`;
+  for (let i = 0; i < 5; i++) s += `<rect x="${i * segW}" y="${top}" width="${segW - 1.5}" height="${bh}" fill="${LCOL[i]}"/>`;
+  for (let i = 0; i < 4; i++) {
+    const tx = (i + 1) * segW - .75;
+    s += `<line x1="${tx}" x2="${tx}" y1="${top + bh}" y2="${top + bh + 6}" stroke="currentColor" stroke-width="1.5" style="color:var(--ink-2)"/>`;
+    s += `<text x="${tx}" y="${top + bh + 18}" text-anchor="middle" style="font-family:var(--num);font-size:13px;fill:var(--ink-2)">${th[i]}</text>`;
+  }
+  if (x != null) {
+    s += `<line x1="${x}" x2="${x}" y1="1" y2="${top + bh + 4}" stroke="var(--ink)" stroke-width="3"/>`;
+    s += `<path d="M${x - 6},0 L${x + 6},0 L${x},7 Z" fill="var(--ink)"/>`;
+    if (over) s += `<text x="${w - 2}" y="${top + bh - 5}" text-anchor="end" style="font-size:12px;font-weight:700;fill:#fff">beyond scale</text>`;
+  }
+  return s + '</svg>';
+}
+
+/* Weekly WVAL chart: level bands, middle-50% spread, median line; the newest point is drawn hollow (provisional). */
+function weeklyChartSVG(stats, th, { w = 560, h = 210, spread = true, compact = false } = {}) {
+  const m = compact ? { t: 6, r: 8, b: 22, l: 26 } : { t: 10, r: 8, b: 26, l: 32 };
+  const pts = stats.filter(d => d.value != null);
+  if (!pts.length) return `<p class="cap">No data in this period.</p>`;
+  const x = d3.scaleUtc().domain(d3.extent(pts, d => Core.dateOf(d.week))).range([m.l, w - m.r]);
+  if (pts.length === 1) x.domain([Core.dateOf(Core.addDays(pts[0].week, -7)), Core.dateOf(pts[0].week)]);
+  const ymax = Math.max(d3.max(pts, d => spread && d.q3 != null ? d.q3 : d.value) * 1.08, th[1] * 1.15);
+  const y = d3.scaleLinear().domain([0, ymax]).nice(4).range([h - m.b, m.t]);
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`).attr('width', w).attr('height', h).attr('class', 'chart').attr('role', 'img')
+    .attr('aria-label', `Weekly wastewater viral activity level, ${fmtRange(pts[0].week, pts[pts.length - 1].week)}`);
+  const bands = [0, ...th, Infinity];
+  for (let i = 0; i < 5; i++) {
+    const lo = bands[i], hi = Math.min(bands[i + 1], y.domain()[1]);
+    if (lo >= y.domain()[1]) break;
+    svg.append('rect').attr('x', m.l).attr('width', w - m.l - m.r).attr('y', y(hi)).attr('height', y(lo) - y(hi))
+      .attr('fill', LCOL[i]).attr('opacity', .28);
+  }
+  if (spread && pts.some(d => d.q1 != null && d.n > 2)) {
+    const ap = pts.filter(d => d.q1 != null);
+    svg.append('path').attr('d', d3.area().x(d => x(Core.dateOf(d.week))).y0(d => y(d.q1)).y1(d => y(d.q3)).curve(d3.curveMonotoneX)(ap))
+      .attr('fill', 'var(--ink)').attr('opacity', .13);
+  }
+  const line = d3.line().x(d => x(Core.dateOf(d.week))).y(d => y(d.value)).curve(d3.curveMonotoneX);
+  const solid = pts.length > 1 ? pts.slice(0, -1) : pts;
+  svg.append('path').attr('d', line(solid)).attr('fill', 'none').attr('stroke', 'var(--ink)').attr('stroke-width', 2.25);
+  if (pts.length > 1) svg.append('path').attr('d', line(pts.slice(-2))).attr('fill', 'none').attr('stroke', 'var(--ink)')
+    .attr('stroke-width', 2.25).attr('stroke-dasharray', '4 3');
+  pts.forEach((d, i) => {
+    const last = i === pts.length - 1;
+    svg.append('circle').attr('cx', x(Core.dateOf(d.week))).attr('cy', y(d.value)).attr('r', compact ? 2.4 : 3.2)
+      .attr('fill', last ? 'var(--panel)' : 'var(--ink)').attr('stroke', 'var(--ink)').attr('stroke-width', 1.5)
+      .append('title').text(`Week ending ${fmtDate(d.week)}: ${fmtNum(d.value)}${d.n ? ` (${d.n} site${d.n === 1 ? '' : 's'})` : ''}${last ? ' (provisional)' : ''}`);
+  });
+  const xa = svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${h - m.b})`)
+    .call(d3.axisBottom(x).ticks(Math.max(2, Math.min(compact ? 4 : 6, Math.floor(w / 90)))).tickFormat(d3.utcFormat('%b %-d')).tickSizeOuter(0));
+  const ya = svg.append('g').attr('class', 'axis').attr('transform', `translate(${m.l},0)`)
+    .call(d3.axisLeft(y).ticks(compact ? 3 : 4).tickSizeOuter(0));
+  [xa, ya].forEach(g => g.selectAll('path').remove());
+  return svg.node().outerHTML;
+}
+function sparkSVG(series, { w = 300, h = 84 } = {}) {
+  if (!series.length) return '';
+  const m = { t: 6, r: 8, b: 22, l: 8 };
+  const x = d3.scaleUtc().domain(d3.extent(series, d => Core.dateOf(d.date))).range([m.l, w - m.r]);
+  const y = d3.scaleLinear().domain([0, d3.max(series, d => d.value) * 1.1 || 1]).range([h - m.b, m.t]);
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`).attr('width', w).attr('height', h).attr('class', 'chart').attr('role', 'img').attr('aria-label', 'WastewaterSCAN measurements, last 90 days');
+  svg.append('path').attr('d', d3.line().x(d => x(Core.dateOf(d.date))).y(d => y(d.value)).curve(d3.curveMonotoneX)(series))
+    .attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2);
+  series.forEach(d => svg.append('circle').attr('cx', x(Core.dateOf(d.date))).attr('cy', y(d.value)).attr('r', 1.8).attr('fill', 'var(--accent)'));
+  const g = svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${h - m.b})`)
+    .call(d3.axisBottom(x).ticks(Math.max(2, Math.min(4, Math.floor(w / 90)))).tickFormat(d3.utcFormat('%b %-d')).tickSizeOuter(0));
+  g.selectAll('path').remove();
+  return svg.node().outerHTML;
+}
+
+/* ---------- State ---------- */
+let RUN = 0;
+const S = {};   // everything computed for the current report
+
+function setStatus(html, isErr = false) { const el = $('#status'); el.innerHTML = html; el.classList.toggle('error', isErr); }
+const busy = msg => setStatus(`<span class="progress" aria-hidden="true"></span>${esc(msg)}`);
+
+async function run({ zip, coords } = {}) {
+  const myRun = ++RUN;
+  const goBtn = $('#go'), geoBtn = $('#geo');
+  goBtn.disabled = geoBtn.disabled = true;
+  Diag.rows = [];
+  CHARTS.clear();
+  const report = $('#report');
+  try {
+    busy('Finding your location…');
+    const geoP = zip ? geocodeZip(zip) : Promise.resolve({ zip: '', lat: coords.lat, lon: coords.lon, place: '', state: null, via: 'your device' });
+    const [loc, , latest] = await Promise.all([geoP, loadAtlas(), cdcLatest()]);
+    if (myRun !== RUN) return;
+    const county = locateCounty(loc.lon, loc.lat);
+    loc.county = county;
+    if (!loc.state && county) loc.state = Core.stateBy(county.stateFips);
+    if (!loc.state) throw Object.assign(new Error('Could not determine the state for this location.'), { user: true });
+
+    busy('Loading wastewater data for every reporting site…');
+    const [natRows, fipsMap] = await Promise.all([cdcNational(latest.maxWeek), siteFipsMap(latest.maxWeek).catch(() => new Map())]);
+    if (myRun !== RUN) return;
+    const sites = Core.mergeSites(new Map(), natRows);
+    const resolveStats = Core.resolveSiteCounties(sites, fipsMap, ATLAS.counties);
+    const natStart = Core.addDays(latest.maxWeek, -7 * (CONFIG.weeksNational - 1));
+    const th = {
+      covid: Core.checkThresholds(sites, 'covid', CONFIG.cdcThresholds.covid, natStart),
+      flu: Core.checkThresholds(sites, 'flu', CONFIG.cdcThresholds.flu, natStart)
+    };
+    const pt = [loc.lon, loc.lat];
+    const ranked = Core.rankSites(sites, pt, county ? county.fips : '', ATLAS.counties, latest.maxWeek);
+
+    busy(`Loading ${CONFIG.weeksLocal}-week trends for ${loc.state.name} and the nearest plants…`);
+    const localIds = ranked.slice(0, 8).map(r => r.site.id);
+    const localRows = await cdcLocal(loc.state, localIds, latest.maxWeek);
+    if (myRun !== RUN) return;
+    Core.mergeSites(sites, localRows);
+    Core.resolveSiteCounties(sites, fipsMap, ATLAS.counties);
+
+    Object.assign(S, { loc, county, latest, sites, th, ranked, natStart, resolveStats, pt });
+    renderReport();
+    setStatus('');
+    report.hidden = false;
+    drawCharts(report);
+    redrawMap();
+    if (zip) history.replaceState(null, '', `?zip=${zip}`);
+    report.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    loadWastewaterScan(myRun);
+    loadPMC(myRun);
+  } catch (e) {
+    console.error(e);
+    if (myRun !== RUN) return;
+    setStatus(esc(e.user ? e.message : `The report could not be built: ${e.message}. Open “Data source status” below for details, then try again.`), true);
+    report.hidden = false;
+    report.innerHTML = diagBlock(true);
+  } finally {
+    if (myRun === RUN) goBtn.disabled = geoBtn.disabled = false;
+  }
+}
+
+/* ---------- Report rendering ---------- */
+function stateFilter(st) { return s => Core.stateBy(s.stateName) === st; }
+function regionFilter(region) { return s => { const st = Core.stateBy(s.stateName); return st && st.region === region; }; }
+function latestOf(stats) { return stats.length ? stats[stats.length - 1] : null; }
+
+function renderReport() {
+  const { loc, county, latest, sites, th, ranked, natStart } = S;
+  const st = loc.state;
+  const localStart = Core.addDays(latest.maxWeek, -7 * (CONFIG.weeksLocal - 1));
+  const near = ranked.slice(0, 2), next = ranked.slice(2, 8);
+  S.near = near;
+
+  // State, national, regional series
+  const stateStats = {}, natStats = {}, regStats = {};
+  for (const p of PATHOGENS) {
+    stateStats[p.key] = Core.weeklyStats(sites, p.key, stateFilter(st), localStart);
+    natStats[p.key] = Core.weeklyStats(sites, p.key, null, natStart);
+    regStats[p.key] = st.region ? Core.weeklyStats(sites, p.key, regionFilter(st.region), natStart) : [];
+  }
+  // PMC-method county values
+  const obs = {}, mine = {};
+  for (const p of PATHOGENS) {
+    obs[p.key] = Core.observedCounties(sites, p.key, latest.maxWeek);
+    mine[p.key] = county ? Core.estimateCounty(county.fips, obs[p.key], ATLAS.counties) : null;
+  }
+  Object.assign(S, { stateStats, natStats, regStats, obs, mine });
+
+  const place = [loc.place, countyLabel(county), st.name].filter(Boolean).join(', ');
+  const latestStart = Core.addDays(latest.maxWeek, -6);
+  let h = `
+  <section class="report-head" aria-labelledby="rh">
+    <h2 id="rh">${loc.zip ? `Report for ZIP code ${esc(loc.zip)}` : 'Report for your location'}</h2>
+    <p class="meta">${esc(place)}</p>
+    <p class="meta">Latest CDC data: week of ${fmtRange(latestStart, latest.maxWeek)}${latest.updated ? `, posted ${esc(fmtDate(latest.updated))}` : ''}. Report built ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.</p>
+    <div class="tools no-print"><button class="ghost" type="button" id="print">Print or save as PDF</button><button class="ghost" type="button" id="copy">Copy link to this report</button></div>
+  </section>
+  <p class="note">CDC notes that the most recent one to two weeks can be incomplete and may change. The newest point on each chart is drawn hollow for that reason.</p>
+  ${glanceHTML()}
+  ${stepNational()}
+  ${stepState()}
+  ${stepPlants(near, next)}
+  <section class="step" aria-labelledby="s4"><div class="step-n" aria-hidden="true">4</div><div id="wwscan">
+    <h2 id="s4">Cross-check with WastewaterSCAN</h2>
+    <p class="muted"><span class="progress" aria-hidden="true"></span>Loading WastewaterSCAN plants near you…</p></div></section>
+  ${stepTogether()}
+  <section class="step" aria-labelledby="s6"><div class="step-n plain muted">PMC</div><div id="pmc">${pmcHTML()}</div></section>
+  ${methodsHTML()}
+  ${diagBlock(false)}`;
+  const report = $('#report');
+  report.innerHTML = h;
+  drawMap('covid');
+  report.querySelectorAll('input[name="mapfill"]').forEach(r => r.addEventListener('change', e => drawMap(e.target.value)));
+  $('#print').addEventListener('click', () => window.print());
+  $('#copy').addEventListener('click', async e => {
+    const url = location.href;
+    try { await navigator.clipboard.writeText(url); e.target.textContent = 'Link copied'; }
+    catch (err) { prompt('Copy this link:', url); }
+  });
+}
+
+const td = (label, html, cls = '') => `<td data-label="${esc(label)}"${cls ? ` class="${cls}"` : ''}><div>${html}</div></td>`;
+function pathCell(stats, pk, thr) {
+  const last = latestOf(stats);
+  if (!last) return '<span class="muted">No recent data</span>';
+  const t = Core.trendOf(stats.map(d => ({ week: d.week, value: d.value })));
+  return `${chip(Core.categorize(last.value, thr))} <span class="num">${fmtNum(last.value)}</span><br><span class="small">${trendHTML(t)}</span>`;
+}
+function siteCell(site, pk) {
+  const pts = Core.seriesPoints(site.series[pk]);
+  const last = pts[pts.length - 1];
+  if (!last || Core.daysBetween(last.week, S.latest.maxWeek) > 14) return '<span class="muted">No data in the last 2 weeks</span>';
+  const li = site.cats[pk].get(last.week);
+  return `${chip(li >= 0 ? li : Core.categorize(last.value, S.th[pk].th))} <span class="num">${fmtNum(last.value)}</span><br><span class="small">${trendHTML(Core.trendOf(pts))}</span>`;
+}
+function glanceHTML() {
+  const { loc, near, th, stateStats, mine, county } = S;
+  const head = near.map((r, i) => `<th>Plant ${LETTERS[i]}<br><span class="small muted">${r.serves ? 'serves your county' : esc(fmtMiles(r.dist))}</span></th>`).join('');
+  const rows = PATHOGENS.map(p => {
+    const m = mine[p.key];
+    const scale = p.key === 'covid' ? CONFIG.pmcStandardCovid : th.flu.th;
+    const pmcCell = m ? `${chip(Core.categorize(m.value, scale))} <span class="num">${fmtNum(m.value)}</span><br><span class="small muted">${m.observed ? 'measured' : 'estimated from nearby counties'}${p.key === 'covid' ? ', PMC standard scale' : ''}</span>` : '<span class="muted">n/a</span>';
+    return `<tr><th scope="row">${p.name}</th>${td(`${loc.state.name} (CDC statewide)`, pathCell(stateStats[p.key], p.key, th[p.key].th))}${near.map((r, i) => td(`Plant ${LETTERS[i]} (${r.serves ? 'serves your county' : fmtMiles(r.dist)})`, siteCell(r.site, p.key))).join('')}${td(`${countyLabel(county) || 'Your county'} (PMC method)`, pmcCell)}</tr>`;
+  }).join('');
+  return `<section class="glance" aria-labelledby="gl"><h2 id="gl">At a glance</h2>
+    <div class="scroll"><table class="tbl stack"><thead><tr><th></th><th>${esc(loc.state.name)}<br><span class="small muted">CDC, statewide median</span></th>${head}<th>${esc(countyLabel(county) || 'Your county')}<br><span class="small muted">PMC method</span></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <p class="cap">Levels use CDC's current categories unless marked. Values are wastewater viral activity levels (WVAL), which compare current virus levels with each site's own low baseline.</p></section>`;
+}
+
+function stepNational() {
+  const { loc, natStats, regStats, th } = S;
+  const row = (label, stats) => `<tr><th scope="row">${esc(label)}</th>${PATHOGENS.map(p => td(p.name, pathCell(stats[p.key], p.key, th[p.key].th))).join('')}${td('Sites, latest week', latestOf(stats.covid)?.n ?? 'n/a', 'r num')}</tr>`;
+  const weeks = natStats.covid.length ? fmtRange(Core.addDays(natStats.covid[0].week, -6), natStats.covid[natStats.covid.length - 1].week) : '';
+  return `<section class="step" aria-labelledby="s1"><div class="step-n" aria-hidden="true">1</div><div>
+    <h2 id="s1">The national picture</h2>
+    <p>Is transmission generally increasing, decreasing or stable? CDC's national and regional levels are the median across every reporting plant in the area.</p>
+    <div class="scroll"><table class="tbl stack"><thead><tr><th>Area</th>${PATHOGENS.map(p => `<th>${p.name}</th>`).join('')}<th class="r">Sites, latest week</th></tr></thead>
+    <tbody>${row('United States', natStats)}${loc.state.region ? row(`${loc.state.region} region`, regStats) : ''}</tbody></table></div>
+    <p class="cap">Data: CDC NWSS, weeks ending ${esc(weeks)}. Medians calculated by this page from CDC's site-level data, as CDC describes for its own national and regional levels. “Rising for 2+ weeks” means the level increased in each of the last two reporting weeks, which is more meaningful than a single high week.</p>
+  </div></section>`;
+}
+
+function statePanel(p) {
+  const { loc, stateStats, th } = S;
+  const stats = stateStats[p.key], last = latestOf(stats), prev = stats.length > 1 ? stats[stats.length - 2] : null;
+  const thr = th[p.key].th;
+  if (!last) return `<div class="panel"><h3>${p.name} in ${esc(loc.state.name)}</h3><p>No ${p.name} wastewater data reported for ${esc(loc.state.name)} in the last ${CONFIG.weeksLocal} weeks.</p></div>`;
+  const li = Core.categorize(last.value, thr);
+  const t = Core.trendOf(stats);
+  const limited = last.n <= 2;
+  const std = p.key === 'covid' ? `<p class="small">On PMC's standard scale (CDC's categories before Aug 14, 2026) this is ${chip(Core.categorize(last.value, CONFIG.pmcStandardCovid))}.</p>` : '';
+  return `<div class="panel"><h3>${p.name} in ${esc(loc.state.name)}</h3>
+    <div class="reading"><span class="v">${fmtNum(last.value)}</span>${chip(li)}<span class="u">WVAL, week ending ${fmtDate(last.week)}</span></div>
+    ${gauge(last.value, thr)}
+    <p>${trendHTML(t)}. Median of <span class="num">${last.n}</span> site${last.n === 1 ? '' : 's'} reporting${prev ? `; the week before it was <span class="num">${fmtNum(prev.value)}</span> from <span class="num">${prev.n}</span> site${prev.n === 1 ? '' : 's'}` : ''}.</p>
+    ${limited ? `<p class="note">Limited coverage: only ${last.n} site${last.n === 1 ? '' : 's'} reported this week, so the statewide value may not reflect your area.</p>` : ''}
+    ${std}
+    ${weeklyChart(stats, thr)}
+    <p class="cap">Weeks ending ${fmtRange(stats[0].week, last.week)}. Line: statewide median; shaded band: middle half of ${esc(loc.state.name)}'s sites; background: CDC level bands (cut points ${thr.join(', ')}${th[p.key].how === 'inferred' ? ', inferred from CDC’s current categories' : ''}).</p>
+  </div>`;
+}
+function stepState() {
+  const { loc } = S;
+  return `<section class="step" aria-labelledby="s2"><div class="step-n" aria-hidden="true">2</div><div>
+    <h2 id="s2">Your state: ${esc(loc.state.name)}</h2>
+    <p>Statewide levels can hide local outbreaks, and a state with few reporting sites is not necessarily low. Check how many sites are reporting before relying on the statewide number.</p>
+    <div class="pair">${PATHOGENS.map(statePanel).join('')}</div>
+    <p class="cap"><a href="https://www.cdc.gov/wastewater/respiratory-viruses/state.html" target="_blank" rel="noopener">CDC state and territory wastewater dashboard</a></p>
+  </div></section>`;
+}
+
+function plantCard(r, i) {
+  const s = r.site, st = Core.stateBy(s.stateName);
+  const where = r.serves ? 'Serves your county' : `${fmtMiles(r.dist)} away, measured to the center of the nearest county it serves`;
+  const paths = PATHOGENS.map(p => {
+    const pts = Core.seriesPoints(s.series[p.key]);
+    if (!pts.length) return `<div class="path-row"><h4>${p.name}</h4><p class="small muted">This plant does not report ${p.name} to CDC.</p></div>`;
+    const last = pts[pts.length - 1];
+    const stale = Core.daysBetween(last.week, S.latest.maxWeek) > 14;
+    const li = s.cats[p.key].get(last.week);
+    const std = p.key === 'covid' ? ` <span class="small muted">PMC standard scale:</span> ${chip(Core.categorize(last.value, CONFIG.pmcStandardCovid))}` : '';
+    return `<div class="path-row"><h4>${p.name}</h4>
+      <div class="reading"><span class="v" style="font-size:2rem">${fmtNum(last.value)}</span>${chip(li >= 0 ? li : Core.categorize(last.value, S.th[p.key].th))}${std}</div>
+      <p class="small">${stale ? `<strong>No data since the week ending ${fmtDate(last.week)}.</strong>` : `${trendHTML(Core.trendOf(pts))}, week ending ${fmtDate(last.week)}.`}</p>
+      ${weeklyChart(pts, S.th[p.key].th, { w: 420, h: 130, spread: false, compact: true })}
+      <p class="cap">Weeks ending ${fmtRange(pts[0].week, last.week)}.</p></div>`;
+  }).join('');
+  return `<article class="panel"><h3><span class="plant-tag" aria-hidden="true">${LETTERS[i]}</span>Plant ${LETTERS[i]}: CDC site ${esc(s.num)}</h3>
+    <dl class="kv"><dt>Location</dt><dd>${esc(where)}</dd>
+    <dt>Counties served</dt><dd>${esc(s.counties.join(', ') || 'not reported')}${st ? `, ${esc(st.abbr)}` : ''}</dd>
+    <dt>Population served</dt><dd class="num">${fmtPop(s.pop)}</dd>
+    <dt>Tested by</dt><dd>${esc(sourceLabel(s.source) || 'not reported')}</dd></dl>${paths}</article>`;
+}
+function stepPlants(near, next) {
+  const { county } = S;
+  const sameCounty = S.ranked.filter(r => r.serves).length;
+  const intro = !near.length ? `<p class="err">No CDC wastewater sites with recent data could be located near you.</p>` :
+    `<p>CDC keeps plant locations anonymous, so this page places each plant at the counties it serves (from CDC's county codes for each site) and ranks plants by distance from your ZIP code. A plant is only relevant if its sewershed, the area that drains to it, includes your community.${sameCounty > 2 ? ` <strong>${sameCounty} plants serve ${esc(countyLabel(county))}</strong>. CDC does not publish sewershed boundaries, so the two shown are the largest by population served among those reporting both COVID-19 and influenza A. The others are in the table below.` : ''}</p>`;
+  const rows = next.map((r, i) => `<tr><th scope="row" class="nw"><span class="plant-tag" aria-hidden="true">${LETTERS[i + 2]}</span>Site ${esc(r.site.num)}</th>
+      ${td('Counties served', `${esc(r.site.counties.join(', '))}, ${esc(Core.stateBy(r.site.stateName)?.abbr || '')}`)}${td('Population', fmtPop(r.site.pop), 'r num')}
+      ${td('Distance', r.serves ? 'Serves your county' : esc(fmtMiles(r.dist)))}${PATHOGENS.map(p => td(p.name, siteCell(r.site, p.key))).join('')}</tr>`).join('');
+  return `<section class="step" aria-labelledby="s3"><div class="step-n" aria-hidden="true">3</div><div>
+    <h2 id="s3">The nearest treatment plants</h2>${intro}
+    <div class="mapbox"><div id="map"></div>
+      <div class="mapctl no-print" role="radiogroup" aria-label="Color the map by">
+        <span class="muted">Color counties by</span>
+        <label><input type="radio" name="mapfill" value="covid" checked> COVID-19</label>
+        <label><input type="radio" name="mapfill" value="flu"> Influenza A</label></div>
+      <div class="legend" id="maplegend"></div>
+    </div>
+    <div class="plants">${near.map(plantCard).join('')}</div>
+    ${next.length ? `<h3 style="margin-top:1.5rem">Other nearby plants</h3><div class="scroll"><table class="tbl stack"><thead><tr><th>Plant</th><th>Counties served</th><th class="r">Population</th><th>Distance</th>${PATHOGENS.map(p => `<th>${p.name}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    <p class="cap">Data: CDC NWSS site-level WVAL. Distances are approximate. Neighboring plants give context, but wastewater activity should not be assumed to carry across county or state lines.</p>
+  </div></section>`;
+}
+
+/* County map around the user, colored with PMC's county method (measured counties solid, estimated counties faded). */
+const mapFill = () => document.querySelector('input[name="mapfill"]:checked')?.value || 'covid';
+function redrawMap() { const box = $('#map'); if (box && S.near && box.clientWidth && box._w !== Math.max(300, Math.round(box.clientWidth))) drawMap(mapFill()); }
+function drawMap(pk) {
+  const box = $('#map'); if (!box) return;
+  const { pt, county, near, obs, th } = S;
+  const far = near.length > 1 ? near[1].dist : (near[0]?.dist || 60);
+  const R = Math.max(55, Math.min(230, far * 1.5 + 25));
+  const fips = new Set();
+  for (const c of ATLAS.counties.values()) if (Core.haversine(pt, c.centroid) <= R) fips.add(c.fips);
+  near.forEach(r => r.site.fips.forEach(f => fips.add(f)));
+  if (county) fips.add(county.fips);
+  const feats = [...fips].map(f => ATLAS.counties.get(f)).filter(Boolean);
+  const W = Math.max(300, Math.round(box.clientWidth || 720)), H = Math.round(Math.max(330, Math.min(520, W * .64)));
+  box._w = W;
+  const proj = d3.geoMercator().fitExtent([[12, 12], [W - 12, H - 12]], { type: 'FeatureCollection', features: feats.map(c => c.feature) });
+  const path = d3.geoPath(proj);
+  const scale = pk === 'covid' ? CONFIG.pmcStandardCovid : th.flu.th;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img')
+    .attr('aria-label', `Map of counties near you colored by ${pk === 'covid' ? 'COVID-19' : 'influenza A'} wastewater level`);
+  const g = svg.append('g');
+  for (const c of feats) {
+    const e = Core.estimateCounty(c.fips, obs[pk], ATLAS.counties);
+    const li = e ? Core.categorize(e.value, scale) : -1;
+    g.append('path').attr('d', path(c.feature)).attr('fill', li >= 0 ? LCOL[li] : 'var(--lna)')
+      .attr('fill-opacity', e && e.observed ? 1 : .42).attr('stroke', 'var(--panel)').attr('stroke-width', .8)
+      .append('title').text(`${countyLabel(c)}: ${e ? `${fmtNum(e.value)} (${Core.LEVELS[li]}, ${e.observed ? `measured, ${e.n} site${e.n === 1 ? '' : 's'}` : 'estimated from nearby counties'})` : 'no estimate'}`);
+  }
+  const stIds = new Set(feats.map(c => c.stateFips));
+  for (const sf of ATLAS.states) if (stIds.has(String(sf.id).padStart(2, '0')))
+    svg.append('path').attr('d', path(sf)).attr('fill', 'none').attr('stroke', 'var(--ink)').attr('stroke-width', 1.4).attr('stroke-opacity', .55);
+  // Markers: the user, WastewaterSCAN plants (exact locations) and CDC plants A/B (placed at the counties they serve).
+  // A small collision check keeps badges and labels from sitting on top of each other.
+  const og = svg.append('g'); // county outlines for plants A and B sit under all markers
+  const dots = [];            // {x, y, r} already occupied
+  const free = (x, y, r) => x > r && y > r && x < W - r && y < H - r && dots.every(d => Math.hypot(d.x - x, d.y - y) >= d.r + r + 3);
+  const u = proj(pt);
+  if (u) dots.push({ x: u[0], y: u[1], r: 9 });
+  const ww = (S.wwPlants || []).map((p, i) => ({ p, i, xy: proj([p.lon, p.lat]) })).filter(d => d.xy);
+  ww.forEach(d => dots.push({ x: d.xy[0], y: d.xy[1], r: 9 }));
+  const badges = [];
+  near.forEach((r, i) => {
+    const cs = r.site.fips.map(f => ATLAS.counties.get(f)).filter(Boolean);
+    cs.forEach(c => og.append('path').attr('d', path(c.feature)).attr('fill', 'none').attr('stroke', 'var(--ink)').attr('stroke-width', 2.6).attr('stroke-dasharray', i ? '6 3' : null));
+    const xy = cs.map(c => proj(c.centroid)).filter(Boolean);
+    if (!xy.length) return;
+    const ax = d3.mean(xy, d => d[0]), ay = d3.mean(xy, d => d[1]);
+    let pos = [ax, ay];
+    search: for (const rad of [0, 28, 46, 64]) for (let k = 0; k < (rad ? 8 : 1); k++) {
+      const a = (k + i * .5) * Math.PI / 4 + Math.PI / 8;
+      const x = ax + rad * Math.cos(a), y = ay + rad * Math.sin(a);
+      if (free(x, y, 13)) { pos = [x, y]; break search; }
+    }
+    dots.push({ x: pos[0], y: pos[1], r: 13 });
+    badges.push({ i, pos });
+  });
+  ww.forEach(({ p, xy }) => svg.append('rect').attr('x', xy[0] - 6).attr('y', xy[1] - 6).attr('width', 12).attr('height', 12).attr('transform', `rotate(45 ${xy[0]} ${xy[1]})`)
+    .attr('fill', 'var(--paper)').attr('stroke', 'var(--accent)').attr('stroke-width', 2.5).append('title').text(`WastewaterSCAN: ${p.name}`));
+  badges.forEach(({ i, pos: [cx, cy] }) => {
+    svg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 12).attr('fill', 'var(--ink)').attr('stroke', 'var(--paper)').attr('stroke-width', 1.5)
+      .append('title').text(`Plant ${LETTERS[i]}, placed at the county it serves (CDC does not publish plant locations)`);
+    svg.append('text').attr('x', cx).attr('y', cy + 5.5).attr('text-anchor', 'middle').attr('fill', 'var(--paper)')
+      .attr('style', 'font-family:var(--num);font-weight:600;font-size:16px').text(LETTERS[i]);
+  });
+  if (u) svg.append('circle').attr('cx', u[0]).attr('cy', u[1]).attr('r', 7).attr('fill', 'var(--accent)').attr('stroke', 'var(--paper)').attr('stroke-width', 3);
+  // Text labels, tried right, left, above, below of their marker.
+  const boxes = [];
+  const hitsDot = (bx) => dots.some(d => {
+    const nx = Math.max(bx.x, Math.min(d.x, bx.x + bx.w)), ny = Math.max(bx.y, Math.min(d.y, bx.y + bx.h));
+    return Math.hypot(d.x - nx, d.y - ny) < d.r + 1;
+  });
+  const hitsBox = bx => boxes.some(b => bx.x < b.x + b.w && bx.x + bx.w > b.x && bx.y < b.y + b.h && bx.y + bx.h > b.y);
+  const label = (x, y, text, w, style) => {
+    const opts = [[x + 11, y - 6, 'start'], [x - 11 - w, y - 6, 'end'], [x - w / 2, y - 25, 'middle'], [x - w / 2, y + 12, 'middle']];
+    let o = opts.find(([bx, by]) => { const b = { x: bx, y: by, w, h: 13 }; return bx > 0 && bx + w < W && by > 0 && by + 13 < H && !hitsDot(b) && !hitsBox(b); }) || opts[0];
+    boxes.push({ x: o[0], y: o[1], w, h: 13 });
+    const tx = o[2] === 'start' ? o[0] : o[2] === 'end' ? o[0] + w : o[0] + w / 2;
+    svg.append('text').attr('x', tx).attr('y', o[1] + 11).attr('text-anchor', o[2])
+      .attr('style', style + ';paint-order:stroke;stroke:var(--panel);stroke-width:3px;stroke-linejoin:round').text(text);
+  };
+  if (u) label(u[0], u[1], 'You', 27, 'font-weight:700;font-size:13px;fill:var(--ink)');
+  ww.forEach(({ i, xy }) => label(xy[0], xy[1], `W${i + 1}`, 20, 'font-weight:700;font-size:12px;fill:var(--accent)'));
+  box.replaceChildren(svg.node());
+  const labels = pk === 'covid' ? 'PMC standard scale (cut points ' + scale.join(', ') + ')' : 'CDC scale (cut points ' + scale.join(', ') + ')';
+  $('#maplegend').innerHTML = Core.LEVELS.map((l, i) => `<span><i style="background:${LCOL[i]}"></i>${l}</span>`).join('') +
+    `<span><i style="background:var(--l2);opacity:.42"></i>Faded: estimated, no plant in county</span>` +
+    `<span>Outlined: counties served by plants A and B</span>${(S.wwPlants || []).length ? '<span>Diamonds: WastewaterSCAN plants</span>' : ''}` +
+    `<span>Colors: ${labels}, latest 3 weeks, county method from PMC</span>`;
+}
+
+function stepTogether() {
+  const { natStats, stateStats, near } = S;
+  const blocks = PATHOGENS.map(p => {
+    const nt = Core.trendOf(natStats[p.key]), stt = Core.trendOf(stateStats[p.key]);
+    const local = near.map(r => Core.trendOf(Core.seriesPoints(r.site.series[p.key])));
+    const localUp = local.some(t => t.sustained && t.dir > 0);
+    const lc = t => t.charAt(0).toLowerCase() + t.slice(1);
+    const items = [
+      { ok: !!(nt.sustained && nt.dir > 0), label: 'National level', detail: lc(nt.text) },
+      { ok: !!(stt.sustained && stt.dir > 0), label: `${S.loc.state.name} statewide level`, detail: lc(stt.text) },
+      { ok: localUp, label: near.length > 1 ? 'Nearest plants' : 'Nearest plant',
+        detail: local.map((t, i) => `${LETTERS[i]}: ${lc(t.text)}`).join('; ') || 'none located' }
+    ];
+    const n = items.filter(x => x.ok).length;
+    const anyUp = [nt, stt, ...local].some(t => t.dir > 0);
+    const verdict = n >= 2 ? `${n} of 3 wastewater signals show a sustained rise in ${p.virus}. If local test positivity or emergency department visits are rising too, that supports increased community transmission, which may justify a lower threshold for testing, better indoor ventilation, masking in crowded spaces, or extra precautions for older or immunocompromised people.`
+      : n === 1 ? `1 of 3 wastewater signals shows a sustained rise in ${p.virus}. Mixed signals: watch next week's data before drawing conclusions.`
+      : anyUp ? `No sustained rise yet in ${p.virus}, though at least one signal ticked up this week.` : `None of the wastewater signals shows a sustained rise in ${p.virus}.`;
+    return `<div class="panel"><h3>${p.name}</h3><ul class="checks">${items.map(x => `<li><span class="mark" aria-hidden="true">${x.ok ? '✓' : '·'}</span><span><strong>${esc(x.label)}</strong>: ${esc(x.detail)}${x.ok ? '<span class="visually-hidden"> (sustained rise)</span>' : ''}</span></li>`).join('')}
+      <li id="tog-ww-${p.key}"><span class="mark" aria-hidden="true">·</span><span><strong>WastewaterSCAN cross-check</strong>: <span class="muted">loading…</span></span></li>
+      <li><span class="mark" aria-hidden="true">?</span><span><strong>Clinical data</strong>: not included here. Check test positivity and emergency department visits on <a href="https://www.cdc.gov/respiratory-viruses/data/index.html" target="_blank" rel="noopener">CDC's respiratory illness data channel</a> and your local health department.</span></li></ul>
+      <p class="verdict">${esc(verdict)}</p></div>`;
+  }).join('');
+  return `<section class="step" aria-labelledby="s5"><div class="step-n" aria-hidden="true">5</div><div>
+    <h2 id="s5">Putting it together</h2>
+    <p>The strongest signal is agreement among several indicators. A check means a rise in each of the last two reporting weeks.</p>
+    <div class="pair">${blocks}</div></div></section>`;
+}
+
+/* ---------- PMC ---------- */
+function pmcHTML() {
+  const { mine, county, obs, loc, latest } = S;
+  const m = mine.covid;
+  let est = '<p>No estimate available for your county.</p>';
+  if (m) {
+    const std = Core.categorize(m.value, CONFIG.pmcStandardCovid), cur = Core.categorize(m.value, S.th.covid.th);
+    const basis = m.observed ? `Measured: median of ${m.n} plant${m.n === 1 ? '' : 's'} in ${esc(countyLabel(county))} with recent data.`
+      : `Estimated: ${esc(countyLabel(county))} has no plant with recent data, so the value is an inverse-distance-weighted average of the ${m.neighbors.length} nearest measured counties (closest ${fmtMiles(m.neighbors[0].d)} away).`;
+    est = `<div class="panel"><h3>COVID-19 in ${esc(countyLabel(county))}, using PMC's county method</h3>
+      <div class="reading"><span class="v">${fmtNum(m.value)}</span>${chip(std)}<span class="u">PMC standard scale</span></div>
+      ${gauge(m.value, CONFIG.pmcStandardCovid)}
+      <p>${basis} On CDC's current scale this would be ${chip(cur)}.</p>
+      <p class="cap">Calculated by this page from CDC site data for weeks ending ${fmtRange(Core.addDays(latest.maxWeek, -14), latest.maxWeek)}, following the county method in PMC's Technical Appendix (v3.3, June 2026). It is not an official PMC number, and PMC's own map can differ. PMC's “1 in X actively infectious” estimates are on its dashboard below.</p></div>`;
+  }
+  const slug = Core.pmcStateSlug(loc.state);
+  return `<h2 id="s6">PMC's COVID-19 estimates</h2>
+    <p>The Pandemic Mitigation Collaborative turns CDC wastewater data into estimates of infections and exposure risk, and maps county hotspots. It is an interpretation layer rather than an independent laboratory network, and some county values are modeled from nearby locations, so verify it against CDC and WastewaterSCAN above.</p>
+    <p class="note">On Aug 14, 2026, CDC changed the cut points it uses to label COVID-19 levels, so the same wastewater reading now gets a lower label (for example, much of what was “High” is now “Moderate”). PMC continues to use the earlier cut points and calls them its “standard” scale. This report shows both.</p>
+    ${est}
+    <div id="pmc-latest" style="margin-top:1.25rem"><p class="muted"><span class="progress" aria-hidden="true"></span>Looking for PMC's latest weekly dashboard…</p></div>
+    <p class="small" style="margin-top:.8rem"><a href="${CONFIG.pmcBase}interactive.php" target="_blank" rel="noopener">PMC interactive county map</a>${slug ? ` | <a href="${CONFIG.pmcBase}${slug}" target="_blank" rel="noopener">PMC page for ${esc(loc.state.name)}</a>` : ''} | <a href="${CONFIG.pmcBase}" target="_blank" rel="noopener">PMC dashboard and past reports</a></p>`;
+}
+function probeImage(src, timeout = 9000) {
+  return new Promise(res => {
+    const img = new Image(); img.referrerPolicy = 'no-referrer';
+    const t = setTimeout(() => { img.src = ''; res(false); }, timeout);
+    img.onload = () => { clearTimeout(t); res(img.naturalWidth > 0); };
+    img.onerror = () => { clearTimeout(t); res(false); };
+    img.src = src;
+  });
+}
+async function loadPMC(myRun) {
+  const box = $('#pmc-latest'); if (!box) return;
+  const t0 = performance.now();
+  for (const c of Core.pmcCandidateTags(new Date())) {
+    const src = `${CONFIG.pmcBase}images/pmc_${c.tag}_01.png`;
+    if (await probeImage(src)) {
+      if (myRun !== RUN) return;
+      logDiag({ label: `PMC weekly dashboard (${c.tag})`, url: src, ok: true, ms: Math.round(performance.now() - t0) });
+      const report = `${CONFIG.pmcBase}PMC_COVID_Report_${c.tag}.pdf`;
+      const thumbs = [2, 3, 4, 5, 6, 7, 8, 9].map(k => { const u = `${CONFIG.pmcBase}images/pmc_${c.tag}_0${k}.png`;
+        return `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="PMC dashboard panel ${k}, ${fmtDate(c.iso)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></a>`; }).join('');
+      box.innerHTML = `<h3>PMC's latest weekly report: ${fmtDate(c.iso)}</h3>
+        <figure class="pmc-fig"><a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="PMC COVID-19 dashboard, ${fmtDate(c.iso)}" referrerpolicy="no-referrer"></a>
+        <figcaption class="cap">PMC COVID-19 dashboard, ${fmtDate(c.iso)}. Select an image to open it full size. Hoerger, M. (${c.iso.slice(0, 4)}). PMC U.S. COVID-19 Report for ${fmtDate(c.iso)}. Pandemic Mitigation Collaborative.</figcaption></figure>
+        <div class="thumbs">${thumbs}</div>
+        <p class="small" style="margin-top:.6rem"><a href="${report}" target="_blank" rel="noopener">Read the full PMC report for ${fmtDate(c.iso)} (PDF)</a></p>`;
+      return;
+    }
+  }
+  if (myRun !== RUN) return;
+  logDiag({ label: 'PMC weekly dashboard', url: CONFIG.pmcBase, ok: false, ms: Math.round(performance.now() - t0), error: 'No dashboard image found for the last 6 weeks' });
+  box.innerHTML = `<p>The latest PMC dashboard image could not be loaded here. <a href="${CONFIG.pmcBase}" target="_blank" rel="noopener">Open it on pmc19.com</a>.</p>`;
+}
+
+/* ---------- WastewaterSCAN ---------- */
+// Fill the WastewaterSCAN line in step 5. It is shown for agreement but not counted in the CDC-based summary.
+function setTogetherWW(pk, detail, up = false) {
+  const li = document.getElementById(`tog-ww-${pk}`); if (!li) return;
+  li.innerHTML = `<span class="mark" aria-hidden="true">${up ? '✓' : '·'}</span><span><strong>WastewaterSCAN cross-check</strong>: ${detail}${up ? '<span class="visually-hidden"> (rising)</span>' : ''} <span class="small muted">(not counted in the summary below; different lab method and scale)</span></span>`;
+}
+async function loadWastewaterScan(myRun) {
+  const box = $('#wwscan'); if (!box) return;
+  const head = '<h2 id="s4">Cross-check with WastewaterSCAN</h2><p>WastewaterSCAN (Stanford, Emory and Verily) tests a sentinel network of plants with consistent lab methods. Its sites are not a representative sample of the country, and its levels use its own scale, so compare direction and agreement rather than exact labels.</p>';
+  const fallback = msg => {
+    PATHOGENS.forEach(p => setTogetherWW(p.key, 'no WastewaterSCAN sample data could be read here; see step 4.'));
+    const cdcW = S.ranked.filter(r => /wastewaterscan|wws/i.test(r.site.source)).slice(0, 2);
+    box.innerHTML = head + `<p class="note">${esc(msg)}</p>` +
+      (cdcW.length ? `<p>WastewaterSCAN plants also report to CDC. The nearest ones in CDC's data:</p><ul>${cdcW.map(r => `<li>CDC site ${esc(r.site.num)} (${esc(r.site.counties.join(', '))}, ${esc(Core.stateBy(r.site.stateName)?.abbr || '')}), ${r.serves ? 'serves your county' : esc(fmtMiles(r.dist))}: COVID-19 ${siteCell(r.site, 'covid').replace(/<br>/g, ' ')}; influenza A ${siteCell(r.site, 'flu').replace(/<br>/g, ' ')}</li>`).join('')}</ul>` : '') +
+      `<p><a href="https://data.wastewaterscan.org/" target="_blank" rel="noopener">Search your ZIP code on the WastewaterSCAN dashboard</a></p>`;
+  };
+  let plants;
+  try { plants = Core.normalizePlants(await fetchJSON(CONFIG.wwscanBase + 'plants.json', { label: 'WastewaterSCAN plant list', timeout: 25000 })); }
+  catch (e) { if (myRun === RUN) fallback('The WastewaterSCAN data feed could not be reached from this page, so WastewaterSCAN results come from CDC\'s copy below.'); return; }
+  if (myRun !== RUN) return;
+  if (!plants.length) { fallback('The WastewaterSCAN plant list was empty or in an unexpected format.'); return; }
+  const nearest = plants.map(p => ({ p, d: Core.haversine(S.pt, [p.lon, p.lat]) })).sort((a, b) => a.d - b.d);
+  const results = [];
+  let fetches = 0, blocked = false;
+  for (const { p, d } of nearest.slice(0, 8)) {
+    if (results.filter(r => r.samples).length >= 2 || fetches >= CONFIG.wwscanMaxPlantFetches || blocked) break;
+    if (d > 250) break;
+    fetches++;
+    const r = { p, d };
+    let lastErr = null;
+    for (const pat of CONFIG.wwscanPlantFiles) {
+      try { r.samples = Core.wwscanSamples(await fetchJSON(CONFIG.wwscanBase + pat.replace('{uid}', encodeURIComponent(p.uid)), { label: `WastewaterSCAN samples: ${p.name}`, timeout: 40000 })); break; }
+      catch (e) { lastErr = e; if (!e.status) { blocked = true; break; } }
+    }
+    if (myRun !== RUN) return;
+    if (!r.samples) continue;
+    const lastDate = r.samples.length ? r.samples[r.samples.length - 1].date : null;
+    if (!lastDate || Core.daysBetween(lastDate, Core.isoOf(new Date())) > 45) continue; // plant no longer sampling
+    results.push(r);
+  }
+  const ok = results.filter(r => r.samples);
+  S.wwPlants = (ok.length ? ok : nearest.slice(0, 2).map(x => ({ p: x.p }))).map(r => r.p);
+  drawMap(mapFill());
+  if (!ok.length) {
+    const list = nearest.slice(0, 2).map(({ p, d }) => `<li>${esc(p.name)}${p.city ? `, ${esc(p.city)}` : ''} ${esc(p.state)} (${esc(fmtMiles(d))} away)</li>`).join('');
+    fallback(`WastewaterSCAN's plant list loaded, but sample data for the nearest plants could not be read here. Nearest WastewaterSCAN plants: `);
+    box.querySelector('.note').insertAdjacentHTML('beforeend', `<ul>${list}</ul>`);
+    return;
+  }
+  for (const p of PATHOGENS) {
+    const parts = ok.slice(0, 2).map((r, i) => {
+      const ser = Core.wwscanSeries(r.samples, Core.wwscanPickKey(r.samples, p.key));
+      return ser.length ? { i, t: Core.wwscanTrend(ser) } : { i, t: null };
+    });
+    const lc = t => t.charAt(0).toLowerCase() + t.slice(1);
+    setTogetherWW(p.key, esc(parts.map(x => `W${x.i + 1}: ${x.t ? lc(x.t.text) : 'not reported'}`).join('; ')), parts.some(x => x.t && x.t.dir > 0));
+  }
+  const cards = ok.slice(0, 2).map((r, i) => {
+    const paths = PATHOGENS.map(p => {
+      const key = Core.wwscanPickKey(r.samples, p.key);
+      const ser = Core.wwscanSeries(r.samples, key);
+      if (!ser.length) return `<div class="path-row"><h4>${p.name}</h4><p class="small muted">Not reported at this plant.</p></div>`;
+      const last = ser[ser.length - 1], t = Core.wwscanTrend(ser);
+      const cat = [...ser].reverse().find(x => x.cat)?.cat;
+      const recent = ser.filter(x => x.date >= Core.addDays(last.date, -90));
+      return `<div class="path-row"><h4>${p.name}</h4>
+        <p>${cat ? `<span class="lvl ww">WastewaterSCAN level: ${esc(String(cat).replace(/^\w/, c => c.toUpperCase()))}</span> ` : ''}${trendHTML(t)}</p>
+        ${sparkWW(recent)}
+        <p class="cap">${recent.length} samples, ${fmtRange(recent[0].date, last.date)}. ${last.normalized ? 'Virus concentration normalized to PMMoV (a marker of human fecal strength).' : 'Virus concentration, gene copies per gram of solids.'} Assay: ${esc(key)}.</p></div>`;
+    }).join('');
+    return `<article class="panel"><h3><span class="plant-tag" aria-hidden="true" style="background:var(--accent)">W${i + 1}</span>${esc(r.p.name)}</h3>
+      <dl class="kv"><dt>Location</dt><dd>${esc([r.p.city, r.p.state].filter(Boolean).join(', '))}, ${esc(fmtMiles(r.d))} from your ZIP code</dd>
+      <dt>Population served</dt><dd class="num">${fmtPop(r.p.pop)}</dd></dl>${paths}</article>`;
+  }).join('');
+  box.innerHTML = head + `<div class="plants">${cards}</div>
+    <p class="cap">Trend here is this page's simple comparison of the last 10 days with the 11 days before (rising if 1.5 times higher, falling if 1.5 times lower), not WastewaterSCAN's own trend call. Data: WastewaterSCAN, CC BY-NC 4.0. <a href="https://data.wastewaterscan.org/" target="_blank" rel="noopener">Open the WastewaterSCAN dashboard</a></p>`;
+  drawCharts(box);
+}
+
+/* ---------- Methods, sources, diagnostics ---------- */
+function methodsHTML() {
+  const { th, resolveStats, latest } = S;
+  const thNote = p => `${p.name}: ${th[p.key].th.join(', ')} (${th[p.key].how === 'confirmed' ? 'checked against CDC’s published site categories this week' : 'CDC appears to have changed its cut points; inferred from this week’s published categories'})`;
+  return `<section class="step" aria-labelledby="s7"><div class="step-n plain muted">Notes</div><div>
+    <h2 id="s7">How this report works</h2>
+    <p><strong>Your location.</strong> The ZIP code is converted to a point, and that point to a county using U.S. Census county boundaries.</p>
+    <p><strong>State and national levels.</strong> CDC defines national, regional and state levels as the median wastewater viral activity level (WVAL) across all reporting plants in the area. This page calculates those medians from CDC's site-level dataset, so they can differ slightly from CDC's dashboard. CDC level cut points used: ${PATHOGENS.map(thNote).map(esc).join('; ')}.</p>
+    <p><strong>Nearest plants.</strong> CDC anonymizes plants but publishes the county codes each one serves. This page links every site to its counties (${resolveStats.validated} by CDC county codes checked against county names, ${resolveStats.nameMatched} by county name alone), then measures from your ZIP code to the center of each county served. The mapping is rebuilt from CDC data automatically and saved in your browser for ${CONFIG.cacheDays} days, so new plants appear without any manual work.</p>
+    <p><strong>Trends.</strong> “Rising for 2+ weeks” means the level went up in each of the last two weeks (and by at least 10% overall); “up from the week before” means a single-week rise of 15% or more.</p>
+    <ul class="sources small">
+      <li>CDC National Wastewater Surveillance System: <a href="https://data.cdc.gov/d/atcp-73re" target="_blank" rel="noopener">Wastewater Viral Activity Level dataset</a>, plus the <a href="https://data.cdc.gov/d/j9g8-acpt" target="_blank" rel="noopener">SARS-CoV-2</a> and <a href="https://data.cdc.gov/d/ymmh-divb" target="_blank" rel="noopener">influenza A</a> sample datasets for county codes. Latest week ending ${fmtDate(latest.maxWeek)}. Public domain.</li>
+      <li>WastewaterSCAN: <a href="https://data.wastewaterscan.org/" target="_blank" rel="noopener">data.wastewaterscan.org</a>, CC BY-NC 4.0, read from the public feed behind its dashboard.</li>
+      <li>Pandemic Mitigation Collaborative: <a href="https://pmc19.com/" target="_blank" rel="noopener">pmc19.com</a>. Dashboard images are shown from pmc19.com, which permits re-use with attribution.</li>
+      <li>Locations: <a href="https://zippopotam.us/" target="_blank" rel="noopener">Zippopotam.us</a> (GeoNames) with OpenStreetMap Nominatim as backup; county boundaries from the U.S. Census Bureau via <a href="https://github.com/topojson/us-atlas" target="_blank" rel="noopener">us-atlas</a>.</li>
+    </ul></div></section>`;
+}
+function diagBlock(open) {
+  return `<details class="diag no-print"${open ? ' open' : ''}><summary>Data source status</summary>
+    <div class="scroll"><table class="tbl"><thead><tr><th>Status</th><th>Source</th><th class="r">Time</th><th>Result</th><th>Request</th></tr></thead><tbody id="diag-body">${diagRows()}</tbody></table></div></details>`;
+}
+
+/* ---------- Wiring ---------- */
+const form = $('#zipform'), input = $('#zip');
+input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, 5); });
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const zip = input.value.trim();
+  if (!/^\d{5}$/.test(zip)) { setStatus('Enter a five-digit ZIP code, for example 19104.', true); input.focus(); return; }
+  run({ zip });
+});
+$('#geo').addEventListener('click', () => {
+  if (!navigator.geolocation) { setStatus('Your browser does not share location. Enter a ZIP code instead.', true); return; }
+  busy('Asking your browser for your location…');
+  navigator.geolocation.getCurrentPosition(
+    p => run({ coords: { lat: p.coords.latitude, lon: p.coords.longitude } }),
+    () => setStatus('Location permission was not granted. Enter a ZIP code instead.', true),
+    { timeout: 15000, maximumAge: 600000 });
+});
+const qz = new URLSearchParams(location.search).get('zip');
+if (qz && /^\d{5}$/.test(qz)) { input.value = qz; run({ zip: qz }); }
+})();
+</script>
+</body>
+</html>
