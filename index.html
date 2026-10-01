@@ -129,6 +129,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:.92rem;font-variant-nume
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.5rem;margin-top:.6rem}
 .thumbs a{display:block;border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:#fff}
 .thumbs img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:contain;background:#fff}
+.fluframe{margin-top:1rem;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:#fff}
+.fluframe iframe{display:block;width:100%;height:780px;border:0}
+@media (max-width:640px){.fluframe iframe{height:640px}}
 .err{border-left:4px solid var(--l3);padding:.5rem .9rem;background:var(--panel)}
 details.diag{margin:1.5rem 0 0;font-size:.88rem}
 details.diag summary{cursor:pointer;font-weight:600}
@@ -219,6 +222,11 @@ const CONFIG = {
   wwscanPlantFiles: ['{uid}.json'],  // file name pattern(s) for one plant's samples
   wwscanMaxPlantFetches: 3,
   pmcBase: 'https://pmc19.com/',
+  // CDC FluView weekly US map (ILINet State Activity Indicator Map). CDC's own page embeds this widget.
+  fluviewWidget: 'https://gis.cdc.gov/grasp/fluview/main_Widget.html?showBackground=false&showHeader=false',
+  fluviewPage: 'https://www.cdc.gov/fluview/surveillance/usmap.html',
+  fluviewFull: 'https://gis.cdc.gov/grasp/fluview/main.html',
+  fluviewReport: 'https://www.cdc.gov/fluview/surveillance/index.html',
   weeksLocal: 16,                   // weeks of history for state and plant trends
   weeksNational: 4,                 // weeks pulled for every site nationally
   // CDC category cut points: upper bound of Very Low, Low, Moderate, High.
@@ -966,6 +974,7 @@ function renderReport() {
     <p class="muted"><span class="progress" aria-hidden="true"></span>Loading WastewaterSCAN plants near you…</p></div></section>
   ${stepTogether()}
   <section class="step" aria-labelledby="s6"><div class="step-n plain muted">PMC</div><div id="pmc">${pmcHTML()}</div></section>
+  ${fluMapHTML()}
   ${methodsHTML()}
   ${diagBlock(false)}`;
   const report = $('#report');
@@ -1206,7 +1215,7 @@ function stepTogether() {
       : anyUp ? `No sustained rise yet in ${p.virus}, though at least one signal ticked up this week.` : `None of the wastewater signals shows a sustained rise in ${p.virus}.`;
     return `<div class="panel"><h3>${p.name}</h3><ul class="checks">${items.map(x => `<li><span class="mark" aria-hidden="true">${x.ok ? '✓' : '·'}</span><span><strong>${esc(x.label)}</strong>: ${esc(x.detail)}${x.ok ? '<span class="visually-hidden"> (sustained rise)</span>' : ''}</span></li>`).join('')}
       <li id="tog-ww-${p.key}"><span class="mark" aria-hidden="true">·</span><span><strong>WastewaterSCAN cross-check</strong>: <span class="muted">loading…</span></span></li>
-      <li><span class="mark" aria-hidden="true">?</span><span><strong>Clinical data</strong>: not included here. Check test positivity and emergency department visits on <a href="https://www.cdc.gov/respiratory-viruses/data/index.html" target="_blank" rel="noopener">CDC's respiratory illness data channel</a> and your local health department.</span></li></ul>
+      <li><span class="mark" aria-hidden="true">?</span><span><strong>Clinical data</strong>: not scored here. ${p.key === 'flu' ? 'See <a href="#fluview">CDC\'s weekly flu map</a> below for doctor visits for influenza-like illness in your state, and check' : 'Check'} test positivity and emergency department visits on <a href="https://www.cdc.gov/respiratory-viruses/data/index.html" target="_blank" rel="noopener">CDC's respiratory illness data channel</a> and your local health department.</span></li></ul>
       <p class="verdict">${esc(verdict)}</p></div>`;
   }).join('');
   return `<section class="step" aria-labelledby="s5"><div class="step-n" aria-hidden="true">5</div><div>
@@ -1269,6 +1278,21 @@ async function loadPMC(myRun) {
   if (myRun !== RUN) return;
   logDiag({ label: 'PMC weekly dashboard', url: CONFIG.pmcBase, ok: false, ms: Math.round(performance.now() - t0), error: 'No dashboard image found for the last 6 weeks' });
   box.innerHTML = `<p>The latest PMC dashboard image could not be loaded here. <a href="${CONFIG.pmcBase}" target="_blank" rel="noopener">Open it on pmc19.com</a>.</p>`;
+}
+
+/* ---------- CDC FluView weekly US map ---------- */
+// CDC's map is an interactive widget rather than a published image, so it is embedded as-is.
+// It opens on CDC's latest week and is updated by CDC; nothing here needs changing week to week.
+function fluMapHTML() {
+  const st = S.loc.state.name;
+  return `<section class="step" aria-labelledby="fluview"><div class="step-n plain muted">CDC</div><div>
+    <h2 id="fluview">CDC's weekly US flu map</h2>
+    <p>This is the map from CDC FluView's “Weekly US Map: Influenza Summary Update.” It shows how busy doctors' offices and clinics in each state are with influenza-like illness (fever plus a cough or sore throat), compared with that state's usual level in weeks with little flu. It comes from patient visits rather than wastewater, so it is one of the clinical signals that step 5 asks you to check.</p>
+    <p class="note">Influenza-like illness is not confirmed flu, so the map can also reflect COVID-19, RSV and other viruses that cause similar symptoms. A large outbreak in one city can raise a whole state's level, and the newest week is preliminary. Early in October the map can briefly show the previous season until CDC posts the first week of the new season. Find ${esc(st)} on the map, and use the arrows under it to step back through recent weeks.</p>
+    <div class="fluframe no-print"><iframe src="${esc(CONFIG.fluviewWidget)}" title="CDC FluView map of influenza-like illness activity by state, latest week" loading="lazy"></iframe></div>
+    <p class="cap">Map: CDC FluView, ILINet State Activity Indicator Map, shown directly from CDC and updated by CDC every week. If the map does not appear, <a href="${CONFIG.fluviewPage}" target="_blank" rel="noopener">open it on CDC's site</a>.
+      <a href="${CONFIG.fluviewFull}" target="_blank" rel="noopener">Full-screen map</a> | <a href="${CONFIG.fluviewReport}" target="_blank" rel="noopener">This week's FluView report</a></p>
+  </div></section>`;
 }
 
 /* ---------- WastewaterSCAN ---------- */
@@ -1364,6 +1388,7 @@ function methodsHTML() {
       <li>CDC National Wastewater Surveillance System: <a href="https://data.cdc.gov/d/atcp-73re" target="_blank" rel="noopener">Wastewater Viral Activity Level dataset</a>, plus the <a href="https://data.cdc.gov/d/j9g8-acpt" target="_blank" rel="noopener">SARS-CoV-2</a> and <a href="https://data.cdc.gov/d/ymmh-divb" target="_blank" rel="noopener">influenza A</a> sample datasets for county codes. Latest week ending ${fmtDate(latest.maxWeek)}. Public domain.</li>
       <li>WastewaterSCAN: <a href="https://data.wastewaterscan.org/" target="_blank" rel="noopener">data.wastewaterscan.org</a>, CC BY-NC 4.0, read from the public feed behind its dashboard.</li>
       <li>Pandemic Mitigation Collaborative: <a href="https://pmc19.com/" target="_blank" rel="noopener">pmc19.com</a>. Dashboard images are shown from pmc19.com, which permits re-use with attribution.</li>
+      <li>CDC FluView: <a href="${CONFIG.fluviewPage}" target="_blank" rel="noopener">Weekly US Map: Influenza Summary Update</a> (ILINet State Activity Indicator Map), embedded from CDC. Public domain.</li>
       <li>Locations: <a href="https://zippopotam.us/" target="_blank" rel="noopener">Zippopotam.us</a> (GeoNames) with OpenStreetMap Nominatim as backup; county boundaries from the U.S. Census Bureau via <a href="https://github.com/topojson/us-atlas" target="_blank" rel="noopener">us-atlas</a>.</li>
     </ul></div></section>`;
 }
